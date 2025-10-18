@@ -7,7 +7,7 @@ num_criteria = st.number_input("Кількість критеріїв:", min_val
 num_alternatives = st.number_input("Кількість альтернатив:", min_value=1, max_value=10, value=3)
 
 dot = graphviz.Digraph()
-dot.attr(size="10,12")  # збільшуємо вертикальний розмір
+dot.attr(size="10,24")  # збільшуємо вертикальний розмір
 
 dot.node("Goal", "GOAL / TEST", shape="box", style="filled", color="lightblue")
 
@@ -29,4 +29,4 @@ for c in criteria_nodes:
         dot.edge(c, a)
 
 # Збільшений розмір відображення
-st.graphviz_chart(dot, width=1000, height=1200)
+st.graphviz_chart(dot, width=1000, height=2400)

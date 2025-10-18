@@ -9,7 +9,7 @@ num_alternatives = st.number_input("Кількість альтернатив:",
 
 # Створення графа
 dot = graphviz.Digraph()
-dot.attr(size="10,15")
+dot.attr(size="10,25")
 
 # Рівень 1 — Мета
 dot.node("Goal", "GOAL / TEST", shape="box", style="filled", color="lightblue")

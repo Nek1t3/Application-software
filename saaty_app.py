@@ -7,21 +7,31 @@ st.title("Метод Сааті — Ієрархія задачі")
 num_criteria = st.number_input("Кількість критеріїв:", min_value=1, max_value=9, value=3)
 num_alternatives = st.number_input("Кількість альтернатив:", min_value=1, max_value=9, value=3)
 
-st.subheader("Назви критеріїв")
-criteria_names = []
-for i in range(num_criteria):
-    name = st.text_input(f"Назва критерію {i+1}:", f"Критерій {i+1}")
-    criteria_names.append(name)
+# Кнопка для відкриття вікна з назвами критеріїв
+if "show_criteria_inputs" not in st.session_state:
+    st.session_state.show_criteria_inputs = False
 
-st.subheader("Назви альтернатив")
-alternative_names = []
-for j in range(num_alternatives):
-    name = st.text_input(f"Назва альтернативи {j+1}:", f"Альтернатива {j+1}")
-    alternative_names.append(name)
+if st.button("🧾 Ввести назви критеріїв та альтернатив"):
+    st.session_state.show_criteria_inputs = not st.session_state.show_criteria_inputs
+
+# Вікно введення назв (умовне відображення)
+criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
+alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
+
+if st.session_state.show_criteria_inputs:
+    st.markdown("### ✏️ Введіть власні назви критеріїв")
+    for i in range(num_criteria):
+        criteria_names[i] = st.text_input(f"Назва критерію {i+1}:", value=criteria_names[i], key=f"crit_{i}")
+
+    st.markdown("### ✏️ Введіть власні назви альтернатив")
+    for j in range(num_alternatives):
+        alternative_names[j] = st.text_input(f"Назва альтернативи {j+1}:", value=alternative_names[j], key=f"alt_{j}")
+
+    st.info("✅ Ви можете змінити назви в будь-який момент — просто натисніть кнопку ще раз, щоб приховати це вікно.")
 
 # Побудова графу
 dot = graphviz.Digraph()
-dot.attr(size="10,24", ratio="fill", rankdir="TB")
+dot.attr(size="10,16", ratio="fill", rankdir="TB")
 
 # Рівень 1 — Мета
 dot.node("Goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="lightblue")
@@ -47,4 +57,4 @@ for c in criteria_nodes:
         dot.edge(c, a)
 
 # Відображення
-st.graphviz_chart(dot, width=1000, height=2400)
+st.graphviz_chart(dot, width=1000, height=1600)

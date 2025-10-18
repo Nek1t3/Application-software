@@ -31,7 +31,7 @@ if st.session_state.show_criteria_inputs:
 
 # Побудова графу
 dot = graphviz.Digraph()
-dot.attr(size="10,16", ratio="fill", rankdir="TB")
+dot.attr(size="10,12", ratio="fill", rankdir="TB")
 
 # Рівень 1 — Мета
 dot.node("Goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="lightblue")
@@ -57,4 +57,4 @@ for c in criteria_nodes:
         dot.edge(c, a)
 
 # Відображення
-st.graphviz_chart(dot, width=1000, height=1600)
+st.graphviz_chart(dot, width=1000, height=1200)

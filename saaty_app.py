@@ -3,8 +3,8 @@ import graphviz
 
 st.title("Метод Сааті — Ієрархія задачі")
 
-num_criteria = st.number_input("Кількість критеріїв:", min_value=1, max_value=10, value=3)
-num_alternatives = st.number_input("Кількість альтернатив:", min_value=1, max_value=10, value=3)
+num_criteria = st.number_input("Кількість критеріїв:", min_value=1, max_value=9, value=3)
+num_alternatives = st.number_input("Кількість альтернатив:", min_value=1, max_value=9, value=3)
 
 dot = graphviz.Digraph()
 dot.attr(size="10,24")  # збільшуємо вертикальний розмір

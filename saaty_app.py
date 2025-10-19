@@ -4,20 +4,30 @@ import graphviz
 st.set_page_config(page_title="Метод Сааті", layout="wide")
 st.title("Метод Сааті — Ієрархія задачі")
 
-# Кількість критеріїв та альтернатив
-num_criteria = st.number_input("Кількість критеріїв:", min_value=1, max_value=9, value=3)
-num_alternatives = st.number_input("Кількість альтернатив:", min_value=1, max_value=9, value=3)
+# --- Вибір кількості критеріїв та альтернатив ---
+if "num_criteria" not in st.session_state:
+    st.session_state.num_criteria = 3
+if "num_alternatives" not in st.session_state:
+    st.session_state.num_alternatives = 3
 
-# Отримання назв із session_state (якщо є)
+num_criteria = st.number_input("Кількість критеріїв:", min_value=1, max_value=9, value=st.session_state.num_criteria)
+num_alternatives = st.number_input("Кількість альтернатив:", min_value=1, max_value=9, value=st.session_state.num_alternatives)
+
+# Оновлюємо session_state, якщо змінились значення
+st.session_state.num_criteria = num_criteria
+st.session_state.num_alternatives = num_alternatives
+
+# --- Отримання назв ---
 criteria_names = st.session_state.get("criteria_names", [f"Критерій {i+1}" for i in range(num_criteria)])
 alternative_names = st.session_state.get("alternative_names", [f"Альтернатива {j+1}" for j in range(num_alternatives)])
+goal_name = st.session_state.get("goal_name", "ГОЛОВНА МЕТА")
 
-# Побудова графу
+# --- Побудова графу ---
 dot = graphviz.Digraph()
 dot.attr(size="10,12", ratio="fill", rankdir="TB")
 
 # Рівень 1 — Мета
-dot.node("Goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="lightblue")
+dot.node("Goal", goal_name, shape="box", style="filled", color="lightblue")
 
 # Рівень 2 — Критерії
 criteria_nodes = []
@@ -42,4 +52,4 @@ for c in criteria_nodes:
 # Відображення
 st.graphviz_chart(dot, width=1000, height=1200)
 
-st.info("💡 Щоб змінити назви критеріїв та альтернатив, відкрийте сторінку **«Назви критеріїв»** у меню ліворуч.")
+st.info("💡 Щоб змінити назви критеріїв та альтернатив, відкрий сторінку **«Назви критеріїв»** у меню ліворуч.")

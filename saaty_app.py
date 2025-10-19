@@ -1,33 +1,16 @@
 import streamlit as st
 import graphviz
 
+st.set_page_config(page_title="Метод Сааті", layout="wide")
 st.title("Метод Сааті — Ієрархія задачі")
 
 # Кількість критеріїв та альтернатив
 num_criteria = st.number_input("Кількість критеріїв:", min_value=1, max_value=9, value=3)
 num_alternatives = st.number_input("Кількість альтернатив:", min_value=1, max_value=9, value=3)
 
-# Кнопка для відкриття вікна з назвами критеріїв
-if "show_criteria_inputs" not in st.session_state:
-    st.session_state.show_criteria_inputs = False
-
-if st.button("🧾 Ввести назви критеріїв та альтернатив"):
-    st.session_state.show_criteria_inputs = not st.session_state.show_criteria_inputs
-
-# Вікно введення назв (умовне відображення)
-criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
-alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
-
-if st.session_state.show_criteria_inputs:
-    st.markdown("### ✏️ Введіть власні назви критеріїв")
-    for i in range(num_criteria):
-        criteria_names[i] = st.text_input(f"Назва критерію {i+1}:", value=criteria_names[i], key=f"crit_{i}")
-
-    st.markdown("### ✏️ Введіть власні назви альтернатив")
-    for j in range(num_alternatives):
-        alternative_names[j] = st.text_input(f"Назва альтернативи {j+1}:", value=alternative_names[j], key=f"alt_{j}")
-
-    st.info("✅ Ви можете змінити назви в будь-який момент — просто натисніть кнопку ще раз, щоб приховати це вікно.")
+# Отримання назв із session_state (якщо є)
+criteria_names = st.session_state.get("criteria_names", [f"Критерій {i+1}" for i in range(num_criteria)])
+alternative_names = st.session_state.get("alternative_names", [f"Альтернатива {j+1}" for j in range(num_alternatives)])
 
 # Побудова графу
 dot = graphviz.Digraph()
@@ -58,3 +41,5 @@ for c in criteria_nodes:
 
 # Відображення
 st.graphviz_chart(dot, width=1000, height=1200)
+
+st.info("💡 Щоб змінити назви критеріїв та альтернатив, відкрийте сторінку **«Назви критеріїв»** у меню ліворуч.")

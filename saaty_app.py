@@ -24,7 +24,7 @@ goal_name = st.session_state.get("goal_name", "ГОЛОВНА МЕТА")
 
 # --- Побудова графу ---
 dot = graphviz.Digraph()
-dot.attr(size="14,12", ratio="fill", rankdir="TB")
+dot.attr(size="15,10", ratio="fill", rankdir="TB")
 
 # Рівень 1 — Мета
 dot.node("Goal", goal_name, shape="box", style="filled", color="lightblue")
@@ -50,6 +50,6 @@ for c in criteria_nodes:
         dot.edge(c, a)
 
 # Відображення
-st.graphviz_chart(dot, width=1400, height=1200)
+st.graphviz_chart(dot, width=1500, height=1000)
 
 st.info("💡 Щоб змінити назви критеріїв та альтернатив, відкрий сторінку **«Назви критеріїв»** у меню ліворуч.")

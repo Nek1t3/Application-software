@@ -17,10 +17,30 @@ num_alternatives = st.number_input("Кількість альтернатив:",
 st.session_state.num_criteria = num_criteria
 st.session_state.num_alternatives = num_alternatives
 
-# --- Отримання назв ---
+# --- Отримуємо назви або створюємо стандартні ---
 criteria_names = st.session_state.get("criteria_names", [f"Критерій {i+1}" for i in range(num_criteria)])
 alternative_names = st.session_state.get("alternative_names", [f"Альтернатива {j+1}" for j in range(num_alternatives)])
 goal_name = st.session_state.get("goal_name", "ГОЛОВНА МЕТА")
+
+# --- 🔄 Синхронізація довжини списків назв ---
+# Якщо критеріїв стало більше — додаємо нові назви
+if len(criteria_names) < num_criteria:
+    for i in range(len(criteria_names), num_criteria):
+        criteria_names.append(f"Критерій {i+1}")
+# Якщо стало менше — обрізаємо список
+elif len(criteria_names) > num_criteria:
+    criteria_names = criteria_names[:num_criteria]
+
+# Те саме для альтернатив
+if len(alternative_names) < num_alternatives:
+    for j in range(len(alternative_names), num_alternatives):
+        alternative_names.append(f"Альтернатива {j+1}")
+elif len(alternative_names) > num_alternatives:
+    alternative_names = alternative_names[:num_alternatives]
+
+# Оновлюємо у session_state
+st.session_state.criteria_names = criteria_names
+st.session_state.alternative_names = alternative_names
 
 # --- Побудова графу ---
 dot = graphviz.Digraph()
@@ -52,4 +72,4 @@ for c in criteria_nodes:
 # Відображення
 st.graphviz_chart(dot, width=1500, height=800)
 
-st.info("💡 Щоб змінити назви критеріїв та альтернатив, відкрий сторінку **«Назви критеріїв»** у меню ліворуч.")
+st.info("💡 Щоб змінити назви критеріїв, альтернатив або головної мети — відкрий сторінку **«Назви критеріїв»** у меню ліворуч.")

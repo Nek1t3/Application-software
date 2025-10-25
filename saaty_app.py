@@ -71,43 +71,81 @@ st.info("💡 Щоб змінити назви критеріїв, альтер�
 st.markdown("---")
 st.markdown("## 📊 Матриці попарних порівнянь")
 
+num_criteria = st.session_state.num_criteria
+num_alternatives = st.session_state.num_alternatives
+criteria_names = st.session_state.criteria_names
+alternative_names = st.session_state.alternative_names
+
 # --- Ініціалізація матриці критеріїв ---
 if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_matrix) != num_criteria:
     st.session_state.criteria_matrix = pd.DataFrame(
-        [[1.0 if i == j else 1.0 for j in range(num_criteria)] for i in range(num_criteria)],
+        np.ones((num_criteria, num_criteria)),
         columns=criteria_names,
         index=criteria_names
     )
 
 st.markdown("### 🧩 Матриця критеріїв")
-criteria_matrix = st.data_editor(
-    st.session_state.criteria_matrix,
+prev_matrix = st.session_state.criteria_matrix.copy()
+
+# показуємо користувачу
+edited_matrix = st.data_editor(
+    prev_matrix,
     key="criteria_matrix_editor",
     use_container_width=True,
     num_rows="dynamic"
 )
-st.session_state.criteria_matrix = criteria_matrix
 
-# --- Ініціалізація словника матриць альтернатив ---
+# --- Автоматичне дзеркальне оновлення ---
+for i in range(num_criteria):
+    for j in range(num_criteria):
+        if i == j:
+            edited_matrix.iloc[i, j] = 1.0  # фіксуємо діагональ
+        elif edited_matrix.iloc[i, j] != prev_matrix.iloc[i, j]:
+            val = edited_matrix.iloc[i, j]
+            if val == 0:
+                val = 1e-9
+            try:
+                edited_matrix.iloc[j, i] = round(1 / float(val), 4)
+            except Exception:
+                pass
+
+st.session_state.criteria_matrix = edited_matrix
+
+# --- Матриці альтернатив ---
 if "alt_matrices" not in st.session_state:
     st.session_state.alt_matrices = {}
 
-# --- Відображення матриць для кожного критерію ---
 for crit in criteria_names:
     if crit not in st.session_state.alt_matrices or len(st.session_state.alt_matrices[crit]) != num_alternatives:
         st.session_state.alt_matrices[crit] = pd.DataFrame(
-            [[1.0 if i == j else 1.0 for j in range(num_alternatives)] for i in range(num_alternatives)],
+            np.ones((num_alternatives, num_alternatives)),
             columns=alternative_names,
             index=alternative_names
         )
 
     with st.expander(f"⚙️ Матриця альтернатив для критерію: {crit}"):
-        edited_matrix = st.data_editor(
-            st.session_state.alt_matrices[crit],
+        prev_alt = st.session_state.alt_matrices[crit].copy()
+        edited_alt = st.data_editor(
+            prev_alt,
             key=f"matrix_{crit}",
             use_container_width=True,
             num_rows="dynamic"
         )
-        st.session_state.alt_matrices[crit] = edited_matrix
 
-st.success("✅ Матриці збережено! Тепер можна буде розраховувати ваги та узгодженість (CR).")
+        # фіксуємо діагональ і дзеркальні значення
+        for i in range(num_alternatives):
+            for j in range(num_alternatives):
+                if i == j:
+                    edited_alt.iloc[i, j] = 1.0
+                elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
+                    val = edited_alt.iloc[i, j]
+                    if val == 0:
+                        val = 1e-9
+                    try:
+                        edited_alt.iloc[j, i] = round(1 / float(val), 4)
+                    except Exception:
+                        pass
+
+        st.session_state.alt_matrices[crit] = edited_alt
+
+st.success("✅ Матриці оновлено. Діагональ зафіксовано, симетрія підтримується автоматично.")

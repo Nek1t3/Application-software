@@ -1,6 +1,8 @@
 import streamlit as st
 import graphviz
 import pandas as pd
+import numpy as np
+
 
 st.set_page_config(page_title="Метод Сааті", layout="wide")
 st.title("Метод Сааті — Ієрархія задачі")

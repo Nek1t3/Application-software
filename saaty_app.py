@@ -29,7 +29,6 @@ criteria_names = st.session_state.get("criteria_names", [f"Критерій {i+1
 alternative_names = st.session_state.get("alternative_names", [f"Альтернатива {j+1}" for j in range(num_alternatives)])
 goal_name = st.session_state.get("goal_name", "ГОЛОВНА МЕТА")
 
-# Синхронізація довжин
 criteria_names = (criteria_names + [f"Критерій {i+1}" for i in range(len(criteria_names), num_criteria)])[:num_criteria]
 alternative_names = (alternative_names + [f"Альтернатива {j+1}" for j in range(len(alternative_names), num_alternatives)])[:num_alternatives]
 
@@ -81,36 +80,49 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
     )
 
 st.markdown("### 🧩 Матриця критеріїв")
-prev_matrix = st.session_state.criteria_matrix.copy()
+
+# копія для показу користувачу (з блокованою діагоналлю)
+display_matrix = st.session_state.criteria_matrix.copy()
+for i in range(num_criteria):
+    display_matrix.iloc[i, i] = "1 (фікс.)"
 
 edited_matrix = st.data_editor(
-    prev_matrix,
+    display_matrix,
     key="criteria_matrix_editor",
     use_container_width=True,
     num_rows="dynamic"
 )
 
 # 🚀 оптимізоване дзеркальне оновлення
-diff = (edited_matrix != prev_matrix)
+prev_matrix = st.session_state.criteria_matrix.copy()
+diff = (edited_matrix != display_matrix)
 if diff.any().any():
     changed = np.where(diff)
     for i, j in zip(changed[0], changed[1]):
+        # пропускаємо діагональ
         if i == j:
-            edited_matrix.iloc[i, j] = 1.0
-        else:
-            val = edited_matrix.iloc[i, j]
-            if pd.notna(val) and val != 0:
-                try:
-                    edited_matrix.iloc[j, i] = round(1 / float(val), 3)
-                except Exception:
-                    edited_matrix.iloc[j, i] = 1.0
+            continue
+        val = edited_matrix.iloc[i, j]
+        if isinstance(val, str):  # пропускаємо текстові поля типу "1 (фікс.)"
+            continue
+        if pd.notna(val) and val != 0:
+            try:
+                edited_matrix.iloc[j, i] = round(1 / float(val), 3)
+            except Exception:
+                edited_matrix.iloc[j, i] = 1.0
 
-# фіксуємо діагональ
-np.fill_diagonal(edited_matrix.values, 1.0)
-st.session_state.criteria_matrix = edited_matrix
+# після редагування створюємо оновлену числову матрицю без тексту
+new_matrix = pd.DataFrame(np.ones((num_criteria, num_criteria)), columns=criteria_names, index=criteria_names)
+for i in range(num_criteria):
+    for j in range(num_criteria):
+        if i != j:
+            val = edited_matrix.iloc[i, j]
+            if isinstance(val, (int, float, np.float64)):
+                new_matrix.iloc[i, j] = val
+st.session_state.criteria_matrix = new_matrix
 
 # ============================================================
-# === 5. Матриці альтернатив для кожного критерію ============
+# === 5. Матриці альтернатив =================================
 # ============================================================
 
 if "alt_matrices" not in st.session_state:
@@ -125,29 +137,40 @@ for crit in criteria_names:
         )
 
     with st.expander(f"⚙️ Матриця альтернатив для критерію: {crit}"):
-        prev_alt = st.session_state.alt_matrices[crit].copy()
+        display_alt = st.session_state.alt_matrices[crit].copy()
+        for i in range(num_alternatives):
+            display_alt.iloc[i, i] = "1 (фікс.)"
+
         edited_alt = st.data_editor(
-            prev_alt,
+            display_alt,
             key=f"matrix_{crit}",
             use_container_width=True,
             num_rows="dynamic"
         )
 
-        diff_alt = (edited_alt != prev_alt)
+        prev_alt = st.session_state.alt_matrices[crit].copy()
+        diff_alt = (edited_alt != display_alt)
         if diff_alt.any().any():
             changed = np.where(diff_alt)
             for i, j in zip(changed[0], changed[1]):
                 if i == j:
-                    edited_alt.iloc[i, j] = 1.0
-                else:
+                    continue
+                val = edited_alt.iloc[i, j]
+                if isinstance(val, str):
+                    continue
+                if pd.notna(val) and val != 0:
+                    try:
+                        edited_alt.iloc[j, i] = round(1 / float(val), 3)
+                    except Exception:
+                        edited_alt.iloc[j, i] = 1.0
+
+        new_alt = pd.DataFrame(np.ones((num_alternatives, num_alternatives)), columns=alternative_names, index=alternative_names)
+        for i in range(num_alternatives):
+            for j in range(num_alternatives):
+                if i != j:
                     val = edited_alt.iloc[i, j]
-                    if pd.notna(val) and val != 0:
-                        try:
-                            edited_alt.iloc[j, i] = round(1 / float(val), 3)
-                        except Exception:
-                            edited_alt.iloc[j, i] = 1.0
+                    if isinstance(val, (int, float, np.float64)):
+                        new_alt.iloc[i, j] = val
+        st.session_state.alt_matrices[crit] = new_alt
 
-        np.fill_diagonal(edited_alt.values, 1.0)
-        st.session_state.alt_matrices[crit] = edited_alt
-
-st.success("✅ Матриці оновлено. Діагональ зафіксовано, симетрія підтримується автоматично.")
+st.success("✅ Матриці оновлено. Діагональ зафіксована і не редагується. Симетрія підтримується автоматично.")

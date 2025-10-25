@@ -3,11 +3,13 @@ import graphviz
 import pandas as pd
 import numpy as np
 
-
 st.set_page_config(page_title="Метод Сааті", layout="wide")
 st.title("Метод Сааті — Ієрархія задачі")
 
-# --- Вибір кількості критеріїв та альтернатив ---
+# ============================================================
+# === 1. Вибір кількості критеріїв і альтернатив ============
+# ============================================================
+
 if "num_criteria" not in st.session_state:
     st.session_state.num_criteria = 3
 if "num_alternatives" not in st.session_state:
@@ -19,30 +21,28 @@ num_alternatives = st.number_input("Кількість альтернатив:",
 st.session_state.num_criteria = num_criteria
 st.session_state.num_alternatives = num_alternatives
 
-# --- Отримання назв або створення стандартних ---
+# ============================================================
+# === 2. Імена критеріїв і альтернатив =======================
+# ============================================================
+
 criteria_names = st.session_state.get("criteria_names", [f"Критерій {i+1}" for i in range(num_criteria)])
 alternative_names = st.session_state.get("alternative_names", [f"Альтернатива {j+1}" for j in range(num_alternatives)])
 goal_name = st.session_state.get("goal_name", "ГОЛОВНА МЕТА")
 
-# --- Синхронізація довжин списків ---
-if len(criteria_names) < num_criteria:
-    for i in range(len(criteria_names), num_criteria):
-        criteria_names.append(f"Критерій {i+1}")
-elif len(criteria_names) > num_criteria:
-    criteria_names = criteria_names[:num_criteria]
-
-if len(alternative_names) < num_alternatives:
-    for j in range(len(alternative_names), num_alternatives):
-        alternative_names.append(f"Альтернатива {j+1}")
-elif len(alternative_names) > num_alternatives:
-    alternative_names = alternative_names[:num_alternatives]
+# Синхронізація довжин
+criteria_names = (criteria_names + [f"Критерій {i+1}" for i in range(len(criteria_names), num_criteria)])[:num_criteria]
+alternative_names = (alternative_names + [f"Альтернатива {j+1}" for j in range(len(alternative_names), num_alternatives)])[:num_alternatives]
 
 st.session_state.criteria_names = criteria_names
 st.session_state.alternative_names = alternative_names
 
-# --- Побудова графу ---
+# ============================================================
+# === 3. Побудова ієрархії ==================================
+# ============================================================
+
 dot = graphviz.Digraph()
 dot.attr(size="15,8", ratio="fill", rankdir="TB")
+
 dot.node("Goal", goal_name, shape="box", style="filled", color="lightblue")
 
 criteria_nodes = []
@@ -63,22 +63,16 @@ for c in criteria_nodes:
         dot.edge(c, a)
 
 st.graphviz_chart(dot, width=1500, height=800)
-
 st.info("💡 Щоб змінити назви критеріїв, альтернатив або головної мети — відкрий сторінку **«Назви критеріїв»** у меню ліворуч.")
 
 # ============================================================
-# === МАТРИЦІ ПОПАРНИХ ПОРІВНЯНЬ =============================
+# === 4. Матриці попарних порівнянь ==========================
 # ============================================================
 
 st.markdown("---")
 st.markdown("## 📊 Матриці попарних порівнянь")
 
-num_criteria = st.session_state.num_criteria
-num_alternatives = st.session_state.num_alternatives
-criteria_names = st.session_state.criteria_names
-alternative_names = st.session_state.alternative_names
-
-# --- Ініціалізація матриці критеріїв ---
+# --- Матриця критеріїв ---
 if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_matrix) != num_criteria:
     st.session_state.criteria_matrix = pd.DataFrame(
         np.ones((num_criteria, num_criteria)),
@@ -89,7 +83,6 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
 st.markdown("### 🧩 Матриця критеріїв")
 prev_matrix = st.session_state.criteria_matrix.copy()
 
-# показуємо користувачу
 edited_matrix = st.data_editor(
     prev_matrix,
     key="criteria_matrix_editor",
@@ -97,23 +90,29 @@ edited_matrix = st.data_editor(
     num_rows="dynamic"
 )
 
-# --- Автоматичне дзеркальне оновлення ---
-for i in range(num_criteria):
-    for j in range(num_criteria):
+# 🚀 оптимізоване дзеркальне оновлення
+diff = (edited_matrix != prev_matrix)
+if diff.any().any():
+    changed = np.where(diff)
+    for i, j in zip(changed[0], changed[1]):
         if i == j:
-            edited_matrix.iloc[i, j] = 1.0  # фіксуємо діагональ
-        elif edited_matrix.iloc[i, j] != prev_matrix.iloc[i, j]:
+            edited_matrix.iloc[i, j] = 1.0
+        else:
             val = edited_matrix.iloc[i, j]
-            if val == 0:
-                val = 1e-9
-            try:
-                edited_matrix.iloc[j, i] = round(1 / float(val), 4)
-            except Exception:
-                pass
+            if pd.notna(val) and val != 0:
+                try:
+                    edited_matrix.iloc[j, i] = round(1 / float(val), 3)
+                except Exception:
+                    edited_matrix.iloc[j, i] = 1.0
 
+# фіксуємо діагональ
+np.fill_diagonal(edited_matrix.values, 1.0)
 st.session_state.criteria_matrix = edited_matrix
 
-# --- Матриці альтернатив ---
+# ============================================================
+# === 5. Матриці альтернатив для кожного критерію ============
+# ============================================================
+
 if "alt_matrices" not in st.session_state:
     st.session_state.alt_matrices = {}
 
@@ -134,20 +133,21 @@ for crit in criteria_names:
             num_rows="dynamic"
         )
 
-        # фіксуємо діагональ і дзеркальні значення
-        for i in range(num_alternatives):
-            for j in range(num_alternatives):
+        diff_alt = (edited_alt != prev_alt)
+        if diff_alt.any().any():
+            changed = np.where(diff_alt)
+            for i, j in zip(changed[0], changed[1]):
                 if i == j:
                     edited_alt.iloc[i, j] = 1.0
-                elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
+                else:
                     val = edited_alt.iloc[i, j]
-                    if val == 0:
-                        val = 1e-9
-                    try:
-                        edited_alt.iloc[j, i] = round(1 / float(val), 4)
-                    except Exception:
-                        pass
+                    if pd.notna(val) and val != 0:
+                        try:
+                            edited_alt.iloc[j, i] = round(1 / float(val), 3)
+                        except Exception:
+                            edited_alt.iloc[j, i] = 1.0
 
+        np.fill_diagonal(edited_alt.values, 1.0)
         st.session_state.alt_matrices[crit] = edited_alt
 
 st.success("✅ Матриці оновлено. Діагональ зафіксовано, симетрія підтримується автоматично.")

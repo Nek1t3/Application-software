@@ -36,30 +36,31 @@ st.session_state.alternative_names = alternative_names
 dot = graphviz.Digraph()
 dot.attr(size="15,8", ratio="fill", rankdir="TB")
 dot.node("Goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="lightblue")
+
 for crit in criteria_names:
     dot.node(crit, crit, shape="box", style="filled", color="lightgreen")
     dot.edge("Goal", crit)
     for alt in alternative_names:
         dot.node(alt, alt, shape="box", style="filled", color="lightyellow")
         dot.edge(crit, alt)
+
 st.graphviz_chart(dot, width=1500, height=800)
 
 # ------------------------------------------------
 # Функція для підсвічування діагоналі
 # ------------------------------------------------
-def style_diagonal(df: pd.DataFrame) -> pd.io.formats.style.Styler:
+def style_diagonal(df: pd.DataFrame):
     n = df.shape[0]
-    # Формуємо список списків стилів
-    styles = [["" for _ in range(n)] for __ in range(n)]
+    styles = pd.DataFrame("", index=df.index, columns=df.columns)
     for i in range(n):
-        styles[i][i] = "background-color: #eeeeee; color: #555555; font-weight: 600;"
+        styles.iloc[i, i] = "background-color: #eeeeee; color: #555555; font-weight: 600;"
     return (
         df.style
         .format(precision=3)
-        .apply(lambda _: styles, axis=None)
         .set_table_styles(
             [{"selector": "th", "props": "font-weight: 600; text-align: center;"}]
         )
+        .apply(lambda _: styles, axis=None)
     )
 
 # ------------------------------------------------

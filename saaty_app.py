@@ -42,7 +42,7 @@ for crit in criteria_names:
 st.graphviz_chart(dot, width=1500, height=700)
 
 # ------------------------------------------------
-# Функція стилізації
+# Функція стилізації сірої діагоналі
 # ------------------------------------------------
 def style_diagonal(df: pd.DataFrame):
     n = df.shape[0]
@@ -57,12 +57,13 @@ def style_diagonal(df: pd.DataFrame):
     )
 
 # ------------------------------------------------
-# Матриця критеріїв
+# ЄДИНА матриця критеріїв
 # ------------------------------------------------
 st.markdown("---")
 st.markdown("## 📊 Матриця попарних порівнянь критеріїв")
 st.info("⚠️ Діагональ не можна змінювати — вона завжди дорівнює 1 (сірі клітинки).")
 
+# ініціалізація
 if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_matrix) != num_criteria:
     st.session_state.criteria_matrix = pd.DataFrame(
         np.ones((num_criteria, num_criteria)),
@@ -70,7 +71,10 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
         index=criteria_names
     )
 
+# робоча копія
 prev = st.session_state.criteria_matrix.copy()
+
+# редагування у самій таблиці
 edited = st.data_editor(
     prev,
     key="criteria_matrix_editor",
@@ -78,25 +82,24 @@ edited = st.data_editor(
     num_rows="dynamic"
 )
 
-# --- Автоматичне оновлення ---
+# логіка дзеркалення і фіксації
 for i in range(num_criteria):
     for j in range(num_criteria):
+        val = edited.iloc[i, j]
         if i == j:
             edited.iloc[i, j] = 1.0
         elif edited.iloc[i, j] != prev.iloc[i, j]:
-            val = edited.iloc[i, j]
             if pd.notna(val) and val != 0:
                 try:
                     edited.iloc[j, i] = round(1 / float(val))
                 except Exception:
                     edited.iloc[j, i] = 1.0
 
-# Оновлення
 np.fill_diagonal(edited.values, 1.0)
 edited = edited.astype(float).round(0)
 st.session_state.criteria_matrix = edited
 
-# Відображення лише однієї сірої матриці
+# показуємо лише одну таблицю (стилізовану)
 st.dataframe(style_diagonal(edited), use_container_width=True)
 
 # ------------------------------------------------
@@ -131,10 +134,10 @@ for tab, crit in zip(tabs, criteria_names):
 
         for i in range(num_alternatives):
             for j in range(num_alternatives):
+                val = edited_alt.iloc[i, j]
                 if i == j:
                     edited_alt.iloc[i, j] = 1.0
                 elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
-                    val = edited_alt.iloc[i, j]
                     if pd.notna(val) and val != 0:
                         try:
                             edited_alt.iloc[j, i] = round(1 / float(val))
@@ -147,4 +150,4 @@ for tab, crit in zip(tabs, criteria_names):
 
         st.dataframe(style_diagonal(edited_alt), use_container_width=True)
 
-st.success("✅ Готово: одна сіра матриця, симетрія та фіксація працюють.")
+st.success("✅ Залишено лише одну матрицю. Діагональ зафіксована, симетрія підтримується.")

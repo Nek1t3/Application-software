@@ -2,3 +2,4 @@ streamlit
 graphviz
 numpy
 pandas
+streamlit-aggrid

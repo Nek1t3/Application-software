@@ -47,28 +47,12 @@ for crit in criteria_names:
 st.graphviz_chart(dot, width=1500, height=800)
 
 # ------------------------------------------------
-# Функція для підсвічування діагоналі
-# ------------------------------------------------
-def style_diagonal(df: pd.DataFrame):
-    n = df.shape[0]
-    styles = pd.DataFrame("", index=df.index, columns=df.columns)
-    for i in range(n):
-        styles.iloc[i, i] = "background-color: #eeeeee; color: #555555; font-weight: 600;"
-    return (
-        df.style
-        .format(precision=3)
-        .set_table_styles(
-            [{"selector": "th", "props": "font-weight: 600; text-align: center;"}]
-        )
-        .apply(lambda _: styles, axis=None)
-    )
-
-# ------------------------------------------------
 # Матриця критеріїв
 # ------------------------------------------------
 st.markdown("---")
 st.markdown("## 📊 Матриці попарних порівнянь")
 st.markdown("### 🧩 Матриця критеріїв")
+st.info("⚠️ Діагональні елементи не можна змінювати — вони завжди рівні 1.")
 
 if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_matrix) != num_criteria:
     st.session_state.criteria_matrix = pd.DataFrame(
@@ -88,24 +72,43 @@ edited_matrix = st.data_editor(
 # --- Дзеркальне оновлення + фіксація діагоналі ---
 for i in range(num_criteria):
     for j in range(num_criteria):
+        val = edited_matrix.iloc[i, j]
+
+        # якщо користувач змінює діагональ → повертаємо 1
         if i == j:
-            edited_matrix.iloc[i, j] = 1.0
+            if val != 1:
+                edited_matrix.iloc[i, j] = 1.0
+
+        # якщо змінилась комірка → оновлюємо дзеркальну
         elif edited_matrix.iloc[i, j] != prev_matrix.iloc[i, j]:
-            val = edited_matrix.iloc[i, j]
             if pd.notna(val) and val != 0:
                 try:
-                    edited_matrix.iloc[j, i] = round(1 / float(val), 3)
+                    edited_matrix.iloc[j, i] = round(1 / float(val))
                 except Exception:
                     edited_matrix.iloc[j, i] = 1.0
 
+# гарантуємо, що діагональ = 1 і всі значення округлені до цілих
 np.fill_diagonal(edited_matrix.values, 1.0)
-edited_matrix = edited_matrix.astype(float).round(3)
+edited_matrix = edited_matrix.astype(float).round(0)
+
 st.session_state.criteria_matrix = edited_matrix
 
-st.caption("🔒 Діагональ логічно зафіксована = 1.0. Зміна будь-якої клітинки автоматично оновлює дзеркальну (aᵢⱼ ↔ 1/aⱼᵢ).")
+# --- Відображення з підсвіченою діагоналлю ---
+def style_diagonal(df: pd.DataFrame):
+    n = df.shape[0]
+    styles = pd.DataFrame("", index=df.index, columns=df.columns)
+    for i in range(n):
+        styles.iloc[i, i] = "background-color: #dddddd; color: #333333; font-weight: 600;"
+    return (
+        df.style
+        .format(precision=0)
+        .apply(lambda _: styles, axis=None)
+        .set_table_styles(
+            [{"selector": "th", "props": "font-weight: 600; text-align: center;"}]
+        )
+    )
 
-with st.expander("👁️ Перегляд матриці критеріїв із підсвіченою діагоналлю"):
-    st.dataframe(style_diagonal(st.session_state.criteria_matrix), use_container_width=True)
+st.dataframe(style_diagonal(st.session_state.criteria_matrix), use_container_width=True)
 
 # ------------------------------------------------
 # Матриці альтернатив
@@ -121,33 +124,32 @@ for crit in criteria_names:
             index=alternative_names
         )
 
-    with st.expander(f"⚙️ Матриця альтернатив для критерію: {crit}"):
-        prev_alt = st.session_state.alt_matrices[crit].copy()
-        edited_alt = st.data_editor(
-            prev_alt,
-            key=f"matrix_{crit}",
-            use_container_width=True,
-            num_rows="dynamic"
-        )
+    st.markdown(f"### ⚙️ Матриця альтернатив для критерію: {crit}")
+    prev_alt = st.session_state.alt_matrices[crit].copy()
+    edited_alt = st.data_editor(
+        prev_alt,
+        key=f"matrix_{crit}",
+        use_container_width=True,
+        num_rows="dynamic"
+    )
 
-        for i in range(num_alternatives):
-            for j in range(num_alternatives):
-                if i == j:
+    for i in range(num_alternatives):
+        for j in range(num_alternatives):
+            val = edited_alt.iloc[i, j]
+            if i == j:
+                if val != 1:
                     edited_alt.iloc[i, j] = 1.0
-                elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
-                    val = edited_alt.iloc[i, j]
-                    if pd.notna(val) and val != 0:
-                        try:
-                            edited_alt.iloc[j, i] = round(1 / float(val), 3)
-                        except Exception:
-                            edited_alt.iloc[j, i] = 1.0
+            elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
+                if pd.notna(val) and val != 0:
+                    try:
+                        edited_alt.iloc[j, i] = round(1 / float(val))
+                    except Exception:
+                        edited_alt.iloc[j, i] = 1.0
 
-        np.fill_diagonal(edited_alt.values, 1.0)
-        edited_alt = edited_alt.astype(float).round(3)
-        st.session_state.alt_matrices[crit] = edited_alt
+    np.fill_diagonal(edited_alt.values, 1.0)
+    edited_alt = edited_alt.astype(float).round(0)
+    st.session_state.alt_matrices[crit] = edited_alt
 
-        st.caption("🔒 Діагональ логічно зафіксована = 1.0.")
-        with st.expander("👁️ Перегляд матриці альтернатив із підсвіченою діагоналлю"):
-            st.dataframe(style_diagonal(st.session_state.alt_matrices[crit]), use_container_width=True)
+    st.dataframe(style_diagonal(st.session_state.alt_matrices[crit]), use_container_width=True)
 
-st.success("✅ Матриці оновлено. Симетрія працює, діагональ фіксується та підсвічується.")
+st.success("✅ Матриці оновлено. Діагональ фіксована, підсвічена і відображається як 1.")

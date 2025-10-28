@@ -2,7 +2,6 @@ import streamlit as st
 import graphviz
 import pandas as pd
 import numpy as np
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 st.set_page_config(page_title="Метод Сааті", layout="wide")
 st.title("Метод Сааті — Ієрархія задачі")
@@ -23,8 +22,11 @@ st.session_state.num_alternatives = num_alternatives
 
 criteria_names = st.session_state.get("criteria_names", [f"Критерій {i+1}" for i in range(num_criteria)])
 alternative_names = st.session_state.get("alternative_names", [f"Альтернатива {j+1}" for j in range(num_alternatives)])
+
+# синхронізація довжин
 criteria_names = (criteria_names + [f"Критерій {i+1}" for i in range(len(criteria_names), num_criteria)])[:num_criteria]
 alternative_names = (alternative_names + [f"Альтернатива {j+1}" for j in range(len(alternative_names), num_alternatives)])[:num_alternatives]
+
 st.session_state.criteria_names = criteria_names
 st.session_state.alternative_names = alternative_names
 
@@ -33,6 +35,7 @@ st.session_state.alternative_names = alternative_names
 # ------------------------------------------------
 dot = graphviz.Digraph()
 dot.attr(size="15,8", ratio="fill", rankdir="TB")
+
 dot.node("Goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="lightblue")
 for crit in criteria_names:
     dot.node(crit, crit, shape="box", style="filled", color="lightgreen")
@@ -40,7 +43,21 @@ for crit in criteria_names:
     for alt in alternative_names:
         dot.node(alt, alt, shape="box", style="filled", color="lightyellow")
         dot.edge(crit, alt)
+
 st.graphviz_chart(dot, width=1500, height=800)
+
+# ------------------------------------------------
+# Хелпер для стилю перегляду (сіра діагональ)
+# ------------------------------------------------
+def style_diagonal(df: pd.DataFrame):
+    n = df.shape[0]
+    # побудуємо матрицю стилів (n*n)
+    styles = np.array([["" for _ in range(n)] for __ in range(n)])
+    for i in range(n):
+        styles[i, i] = "background-color: #eeeeee; color: #666666; font-weight: 600;"
+    return df.style.set_precision(3).set_table_styles([
+        {"selector": "th", "props": "font-weight: 600;"},
+    ]).apply(lambda _: styles, axis=None)
 
 # ------------------------------------------------
 # Матриця критеріїв
@@ -56,51 +73,40 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
         index=criteria_names
     )
 
-# --- AGGRID побудова ---
-matrix_df = st.session_state.criteria_matrix.copy().round(3)
-matrix_df.reset_index(inplace=True)
-matrix_df.rename(columns={"index": "Критерії ↓ / Критерії →"}, inplace=True)
-
-gb = GridOptionsBuilder.from_dataframe(matrix_df)
-gb.configure_default_column(editable=True)
-
-# Діагональ блокуємо
-for i, row_name in enumerate(criteria_names):
-    col_name = criteria_names[i]
-    gb.configure_column(col_name, cellStyle={"color": "gray"} if i == matrix_df.columns.get_loc(col_name) - 1 else None)
-
-# Опції сітки
-grid_options = gb.build()
-grid_response = AgGrid(
-    matrix_df,
-    gridOptions=grid_options,
-    update_mode=GridUpdateMode.VALUE_CHANGED,
-    theme="balham",
-    fit_columns_on_grid_load=True,
-    enable_enterprise_modules=False,
-    height=300,
-    allow_unsafe_jscode=True,
+prev_matrix = st.session_state.criteria_matrix.copy()
+edited_matrix = st.data_editor(
+    prev_matrix,
+    key="criteria_editor",
+    use_container_width=True,
+    num_rows="dynamic"
 )
 
-# --- обробка змін ---
-edited_df = pd.DataFrame(grid_response["data"])
-edited_df.set_index("Критерії ↓ / Критерії →", inplace=True)
-
-# Симетрія + блокування діагоналі
-for i in range(num_criteria):
-    for j in range(num_criteria):
+# --- оптимізоване дзеркальне оновлення + фіксація діагоналі ---
+diff = (edited_matrix != prev_matrix)
+if diff.any().any():
+    changed = np.where(diff)
+    for i, j in zip(changed[0], changed[1]):
         if i == j:
-            edited_df.iloc[i, j] = 1.0
+            # діагональ завжди = 1
+            edited_matrix.iloc[i, j] = 1.0
         else:
-            val = edited_df.iloc[i, j]
+            val = edited_matrix.iloc[i, j]
             if pd.notna(val) and val != 0:
                 try:
-                    edited_df.iloc[j, i] = round(1 / float(val), 3)
+                    edited_matrix.iloc[j, i] = round(1 / float(val), 3)
                 except Exception:
-                    edited_df.iloc[j, i] = 1.0
+                    edited_matrix.iloc[j, i] = 1.0
 
-st.session_state.criteria_matrix = edited_df
-st.caption("🔒 Діагональ зафіксована (не редагується). Симетрія оновлюється автоматично.")
+# гарантуємо 1 на діагоналі
+np.fill_diagonal(edited_matrix.values, 1.0)
+# округлення для охайного вигляду
+edited_matrix = edited_matrix.astype(float).round(3)
+
+st.session_state.criteria_matrix = edited_matrix
+st.caption("🔒 Діагональ логічно зафіксована = 1.0. Зміни у будь-якій клітинці автоматично оновлюють дзеркальну (aᵢⱼ ↔ 1/aⱼᵢ).")
+
+with st.expander("👁️ Перегляд матриці критеріїв із підсвіченою діагоналлю"):
+    st.dataframe(style_diagonal(st.session_state.criteria_matrix), use_container_width=True)
 
 # ------------------------------------------------
 # Матриці альтернатив
@@ -117,40 +123,35 @@ for crit in criteria_names:
         )
 
     with st.expander(f"⚙️ Матриця альтернатив для критерію: {crit}"):
-        alt_df = st.session_state.alt_matrices[crit].copy().round(3)
-        alt_df.reset_index(inplace=True)
-        alt_df.rename(columns={"index": "Альтернативи ↓ / →"}, inplace=True)
-
-        gb2 = GridOptionsBuilder.from_dataframe(alt_df)
-        gb2.configure_default_column(editable=True)
-        grid_options2 = gb2.build()
-
-        grid_response2 = AgGrid(
-            alt_df,
-            gridOptions=grid_options2,
-            update_mode=GridUpdateMode.VALUE_CHANGED,
-            theme="balham",
-            fit_columns_on_grid_load=True,
-            height=300,
-            allow_unsafe_jscode=True,
+        prev_alt = st.session_state.alt_matrices[crit].copy()
+        edited_alt = st.data_editor(
+            prev_alt,
+            key=f"matrix_{crit}",
+            use_container_width=True,
+            num_rows="dynamic"
         )
 
-        edited_alt_df = pd.DataFrame(grid_response2["data"])
-        edited_alt_df.set_index("Альтернативи ↓ / →", inplace=True)
-
-        for i in range(num_alternatives):
-            for j in range(num_alternatives):
+        diff_alt = (edited_alt != prev_alt)
+        if diff_alt.any().any():
+            changed = np.where(diff_alt)
+            for i, j in zip(changed[0], changed[1]):
                 if i == j:
-                    edited_alt_df.iloc[i, j] = 1.0
+                    edited_alt.iloc[i, j] = 1.0
                 else:
-                    val = edited_alt_df.iloc[i, j]
+                    val = edited_alt.iloc[i, j]
                     if pd.notna(val) and val != 0:
                         try:
-                            edited_alt_df.iloc[j, i] = round(1 / float(val), 3)
+                            edited_alt.iloc[j, i] = round(1 / float(val), 3)
                         except Exception:
-                            edited_alt_df.iloc[j, i] = 1.0
+                            edited_alt.iloc[j, i] = 1.0
 
-        st.session_state.alt_matrices[crit] = edited_alt_df
-        st.caption("🔒 Діагональ зафіксована (не редагується). Симетрія оновлюється автоматично.")
+        np.fill_diagonal(edited_alt.values, 1.0)
+        edited_alt = edited_alt.astype(float).round(3)
 
-st.success("✅ Матриці оновлено. Симетрія працює, діагональ не редагується.")
+        st.session_state.alt_matrices[crit] = edited_alt
+        st.caption("🔒 Діагональ логічно зафіксована = 1.0.")
+
+        with st.expander("👁️ Перегляд матриці альтернатив із підсвіченою діагоналлю"):
+            st.dataframe(style_diagonal(st.session_state.alt_matrices[crit]), use_container_width=True)
+
+st.success("✅ Матриці оновлено. Симетрія працює, діагональ фіксується та виділяється в перегляді.")

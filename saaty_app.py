@@ -76,41 +76,42 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
         index=criteria_names
     )
 
-prev_matrix = st.session_state.criteria_matrix.copy()
-edited_matrix = st.session_state.criteria_matrix.copy()
+matrix = st.session_state.criteria_matrix.copy()
 
-# оновлення через редагування значень
-edited = st.data_editor(
-    edited_matrix,
-    key="criteria_editor",
-    use_container_width=True,
-    num_rows="dynamic"
-)
-
-# --- обробка змін, симетрія, діагональ ---
+# редагування значень у таблиці через Streamlit input-поля
 for i in range(num_criteria):
+    cols = st.columns(num_criteria)
     for j in range(num_criteria):
-        val = edited.iloc[i, j]
         if i == j:
-            # фіксуємо діагональ
-            if val != 1:
-                edited.iloc[i, j] = 1.0
-        elif edited.iloc[i, j] != prev_matrix.iloc[i, j]:
-            if pd.notna(val) and val != 0:
+            cols[j].markdown(f"<div style='background-color:#dddddd;padding:8px;text-align:center;'>1</div>", unsafe_allow_html=True)
+            matrix.iloc[i, j] = 1.0
+        else:
+            val = cols[j].number_input(
+                f"{criteria_names[i]} / {criteria_names[j]}",
+                value=float(matrix.iloc[i, j]),
+                step=1.0,
+                key=f"{i}_{j}",
+                format="%.0f"
+            )
+            # якщо змінено — дзеркально оновлюємо
+            if val != matrix.iloc[i, j]:
                 try:
-                    edited.iloc[j, i] = round(1 / float(val))
-                except Exception:
-                    edited.iloc[j, i] = 1.0
+                    matrix.iloc[i, j] = val
+                    matrix.iloc[j, i] = round(1 / val)
+                except ZeroDivisionError:
+                    matrix.iloc[i, j] = 1.0
+                    matrix.iloc[j, i] = 1.0
 
-np.fill_diagonal(edited.values, 1.0)
-edited = edited.astype(float).round(0)
-st.session_state.criteria_matrix = edited
+# оновлення стану
+np.fill_diagonal(matrix.values, 1.0)
+matrix = matrix.astype(float).round(0)
+st.session_state.criteria_matrix = matrix
 
-# вивід матриці (тільки 1 таблиця)
-st.dataframe(style_diagonal(edited), use_container_width=True)
+# відображення з підсвіченою діагоналлю
+st.dataframe(style_diagonal(matrix), use_container_width=True)
 
 # ------------------------------------------------
-# Матриці альтернатив (окремі вкладки)
+# Матриці альтернатив (вкладки)
 # ------------------------------------------------
 st.markdown("---")
 st.markdown("## 🧮 Матриці попарних порівнянь альтернатив")
@@ -118,7 +119,6 @@ st.markdown("## 🧮 Матриці попарних порівнянь альт
 if "alt_matrices" not in st.session_state:
     st.session_state.alt_matrices = {}
 
-# створюємо вкладки для кожного критерію
 tabs = st.tabs([f"{crit}" for crit in criteria_names])
 
 for tab, crit in zip(tabs, criteria_names):
@@ -132,31 +132,34 @@ for tab, crit in zip(tabs, criteria_names):
                 index=alternative_names
             )
 
-        prev_alt = st.session_state.alt_matrices[crit].copy()
-        edited_alt = st.data_editor(
-            prev_alt,
-            key=f"matrix_{crit}",
-            use_container_width=True,
-            num_rows="dynamic"
-        )
+        alt_matrix = st.session_state.alt_matrices[crit].copy()
 
         for i in range(num_alternatives):
+            cols = st.columns(num_alternatives)
             for j in range(num_alternatives):
-                val = edited_alt.iloc[i, j]
                 if i == j:
-                    if val != 1:
-                        edited_alt.iloc[i, j] = 1.0
-                elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
-                    if pd.notna(val) and val != 0:
+                    cols[j].markdown(f"<div style='background-color:#dddddd;padding:8px;text-align:center;'>1</div>", unsafe_allow_html=True)
+                    alt_matrix.iloc[i, j] = 1.0
+                else:
+                    val = cols[j].number_input(
+                        f"{alternative_names[i]} / {alternative_names[j]}",
+                        value=float(alt_matrix.iloc[i, j]),
+                        step=1.0,
+                        key=f"{crit}_{i}_{j}",
+                        format="%.0f"
+                    )
+                    if val != alt_matrix.iloc[i, j]:
                         try:
-                            edited_alt.iloc[j, i] = round(1 / float(val))
-                        except Exception:
-                            edited_alt.iloc[j, i] = 1.0
+                            alt_matrix.iloc[i, j] = val
+                            alt_matrix.iloc[j, i] = round(1 / val)
+                        except ZeroDivisionError:
+                            alt_matrix.iloc[i, j] = 1.0
+                            alt_matrix.iloc[j, i] = 1.0
 
-        np.fill_diagonal(edited_alt.values, 1.0)
-        edited_alt = edited_alt.astype(float).round(0)
-        st.session_state.alt_matrices[crit] = edited_alt
+        np.fill_diagonal(alt_matrix.values, 1.0)
+        alt_matrix = alt_matrix.astype(float).round(0)
+        st.session_state.alt_matrices[crit] = alt_matrix
 
-        st.dataframe(style_diagonal(edited_alt), use_container_width=True)
+        st.dataframe(style_diagonal(alt_matrix), use_container_width=True)
 
 st.success("✅ Усі матриці оновлено. Діагоналі зафіксовані = 1, симетрія підтримується.")

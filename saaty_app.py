@@ -51,15 +51,17 @@ st.graphviz_chart(dot, width=1500, height=800)
 # ------------------------------------------------
 def style_diagonal(df: pd.DataFrame):
     n = df.shape[0]
-    styles = np.array([["" for _ in range(n)] for __ in range(n)])
+    # створюємо список списків (а не numpy array)
+    styles = [["" for _ in range(n)] for __ in range(n)]
     for i in range(n):
-        styles[i, i] = "background-color: #eeeeee; color: #666666; font-weight: 600;"
+        styles[i][i] = "background-color: #eeeeee; color: #666666; font-weight: 600;"
     return (
         df.style
         .format(precision=3)
         .set_table_styles([{"selector": "th", "props": "font-weight: 600;"}])
         .apply(lambda _: styles, axis=None)
     )
+
 
 
 # ------------------------------------------------

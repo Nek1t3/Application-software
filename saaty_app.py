@@ -22,14 +22,8 @@ num_alternatives = st.number_input("Кількість альтернатив:",
 st.session_state.num_criteria = num_criteria
 st.session_state.num_alternatives = num_alternatives
 
-criteria_names = st.session_state.get("criteria_names", [f"Критерій {i+1}" for i in range(num_criteria)])
-alternative_names = st.session_state.get("alternative_names", [f"Альтернатива {j+1}" for j in range(num_alternatives)])
-
-criteria_names = (criteria_names + [f"Критерій {i+1}" for i in range(len(criteria_names), num_criteria)])[:num_criteria]
-alternative_names = (alternative_names + [f"Альтернатива {j+1}" for j in range(len(alternative_names), num_alternatives)])[:num_alternatives]
-
-st.session_state.criteria_names = criteria_names
-st.session_state.alternative_names = alternative_names
+criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
+alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
 
 # ------------------------------------------------
 # Побудова графу
@@ -48,7 +42,7 @@ for crit in criteria_names:
 st.graphviz_chart(dot, width=1500, height=700)
 
 # ------------------------------------------------
-# Функція для стилізації діагоналі
+# Функція стилізації
 # ------------------------------------------------
 def style_diagonal(df: pd.DataFrame):
     n = df.shape[0]
@@ -76,39 +70,34 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
         index=criteria_names
     )
 
-matrix = st.session_state.criteria_matrix.copy()
+prev = st.session_state.criteria_matrix.copy()
+edited = st.data_editor(
+    prev,
+    key="criteria_matrix_editor",
+    use_container_width=True,
+    num_rows="dynamic"
+)
 
-# редагування значень у таблиці через Streamlit input-поля
+# --- Автоматичне оновлення ---
 for i in range(num_criteria):
-    cols = st.columns(num_criteria)
     for j in range(num_criteria):
         if i == j:
-            cols[j].markdown(f"<div style='background-color:#dddddd;padding:8px;text-align:center;'>1</div>", unsafe_allow_html=True)
-            matrix.iloc[i, j] = 1.0
-        else:
-            val = cols[j].number_input(
-                f"{criteria_names[i]} / {criteria_names[j]}",
-                value=float(matrix.iloc[i, j]),
-                step=1.0,
-                key=f"{i}_{j}",
-                format="%.0f"
-            )
-            # якщо змінено — дзеркально оновлюємо
-            if val != matrix.iloc[i, j]:
+            edited.iloc[i, j] = 1.0
+        elif edited.iloc[i, j] != prev.iloc[i, j]:
+            val = edited.iloc[i, j]
+            if pd.notna(val) and val != 0:
                 try:
-                    matrix.iloc[i, j] = val
-                    matrix.iloc[j, i] = round(1 / val)
-                except ZeroDivisionError:
-                    matrix.iloc[i, j] = 1.0
-                    matrix.iloc[j, i] = 1.0
+                    edited.iloc[j, i] = round(1 / float(val))
+                except Exception:
+                    edited.iloc[j, i] = 1.0
 
-# оновлення стану
-np.fill_diagonal(matrix.values, 1.0)
-matrix = matrix.astype(float).round(0)
-st.session_state.criteria_matrix = matrix
+# Оновлення
+np.fill_diagonal(edited.values, 1.0)
+edited = edited.astype(float).round(0)
+st.session_state.criteria_matrix = edited
 
-# відображення з підсвіченою діагоналлю
-st.dataframe(style_diagonal(matrix), use_container_width=True)
+# Відображення лише однієї сірої матриці
+st.dataframe(style_diagonal(edited), use_container_width=True)
 
 # ------------------------------------------------
 # Матриці альтернатив (вкладки)
@@ -132,34 +121,30 @@ for tab, crit in zip(tabs, criteria_names):
                 index=alternative_names
             )
 
-        alt_matrix = st.session_state.alt_matrices[crit].copy()
+        prev_alt = st.session_state.alt_matrices[crit].copy()
+        edited_alt = st.data_editor(
+            prev_alt,
+            key=f"matrix_{crit}",
+            use_container_width=True,
+            num_rows="dynamic"
+        )
 
         for i in range(num_alternatives):
-            cols = st.columns(num_alternatives)
             for j in range(num_alternatives):
                 if i == j:
-                    cols[j].markdown(f"<div style='background-color:#dddddd;padding:8px;text-align:center;'>1</div>", unsafe_allow_html=True)
-                    alt_matrix.iloc[i, j] = 1.0
-                else:
-                    val = cols[j].number_input(
-                        f"{alternative_names[i]} / {alternative_names[j]}",
-                        value=float(alt_matrix.iloc[i, j]),
-                        step=1.0,
-                        key=f"{crit}_{i}_{j}",
-                        format="%.0f"
-                    )
-                    if val != alt_matrix.iloc[i, j]:
+                    edited_alt.iloc[i, j] = 1.0
+                elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
+                    val = edited_alt.iloc[i, j]
+                    if pd.notna(val) and val != 0:
                         try:
-                            alt_matrix.iloc[i, j] = val
-                            alt_matrix.iloc[j, i] = round(1 / val)
-                        except ZeroDivisionError:
-                            alt_matrix.iloc[i, j] = 1.0
-                            alt_matrix.iloc[j, i] = 1.0
+                            edited_alt.iloc[j, i] = round(1 / float(val))
+                        except Exception:
+                            edited_alt.iloc[j, i] = 1.0
 
-        np.fill_diagonal(alt_matrix.values, 1.0)
-        alt_matrix = alt_matrix.astype(float).round(0)
-        st.session_state.alt_matrices[crit] = alt_matrix
+        np.fill_diagonal(edited_alt.values, 1.0)
+        edited_alt = edited_alt.astype(float).round(0)
+        st.session_state.alt_matrices[crit] = edited_alt
 
-        st.dataframe(style_diagonal(alt_matrix), use_container_width=True)
+        st.dataframe(style_diagonal(edited_alt), use_container_width=True)
 
-st.success("✅ Усі матриці оновлено. Діагоналі зафіксовані = 1, симетрія підтримується.")
+st.success("✅ Готово: одна сіра матриця, симетрія та фіксація працюють.")

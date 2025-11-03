@@ -3,6 +3,9 @@ import graphviz
 import pandas as pd
 import numpy as np
 
+# ------------------------------------------------
+# Налаштування
+# ------------------------------------------------
 st.set_page_config(page_title="Метод Сааті", layout="wide")
 st.title("Метод Сааті — Ієрархія задачі")
 
@@ -20,22 +23,16 @@ num_alternatives = st.number_input("Кількість альтернатив:",
 st.session_state.num_criteria = num_criteria
 st.session_state.num_alternatives = num_alternatives
 
-criteria_names = st.session_state.get("criteria_names", [f"Критерій {i+1}" for i in range(num_criteria)])
-alternative_names = st.session_state.get("alternative_names", [f"Альтернатива {j+1}" for j in range(num_alternatives)])
-
-criteria_names = (criteria_names + [f"Критерій {i+1}" for i in range(len(criteria_names), num_criteria)])[:num_criteria]
-alternative_names = (alternative_names + [f"Альтернатива {j+1}" for j in range(len(alternative_names), num_alternatives)])[:num_alternatives]
-
-st.session_state.criteria_names = criteria_names
-st.session_state.alternative_names = alternative_names
+criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
+alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
 
 # ------------------------------------------------
-# Граф
+# Побудова графу
 # ------------------------------------------------
 dot = graphviz.Digraph()
 dot.attr(size="15,8", ratio="fill", rankdir="TB")
-
 dot.node("Goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="lightblue")
+
 for crit in criteria_names:
     dot.node(crit, crit, shape="box", style="filled", color="lightgreen")
     dot.edge("Goal", crit)
@@ -43,14 +40,13 @@ for crit in criteria_names:
         dot.node(alt, alt, shape="box", style="filled", color="lightyellow")
         dot.edge(crit, alt)
 
-st.graphviz_chart(dot, width=1500, height=800)
+st.graphviz_chart(dot, width=1500, height=700)
 
 # ------------------------------------------------
 # Матриця критеріїв
 # ------------------------------------------------
 st.markdown("---")
-st.markdown("## 📊 Матриці попарних порівнянь")
-st.markdown("### 🧩 Матриця критеріїв")
+st.markdown("## 📊 Матриця попарних порівнянь критеріїв")
 
 if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_matrix) != num_criteria:
     st.session_state.criteria_matrix = pd.DataFrame(
@@ -59,29 +55,26 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
         index=criteria_names
     )
 
-prev_matrix = st.session_state.criteria_matrix.copy()
-edited_matrix = st.data_editor(
-    prev_matrix,
-    key="criteria_editor",
-    use_container_width=True,
-    num_rows="dynamic"
-)
+prev = st.session_state.criteria_matrix.copy()
+edited = st.data_editor(prev, key="criteria_editor", use_container_width=True)
 
-# --- дзеркальне оновлення + блокування діагоналі ---
 for i in range(num_criteria):
     for j in range(num_criteria):
         if i == j:
-            edited_matrix.iloc[i, j] = 1.0
-        elif edited_matrix.iloc[i, j] != prev_matrix.iloc[i, j]:
-            val = edited_matrix.iloc[i, j]
+            edited.iloc[i, j] = 1.0
+        elif edited.iloc[i, j] != prev.iloc[i, j]:
+            val = edited.iloc[i, j]
             if pd.notna(val) and val != 0:
                 try:
-                    edited_matrix.iloc[j, i] = round(1 / float(val), 3)
+                    edited.iloc[j, i] = round(1 / float(val), 3)
                 except Exception:
-                    edited_matrix.iloc[j, i] = 1.0
+                    edited.iloc[j, i] = 1.0
 
-st.session_state.criteria_matrix = edited_matrix
-st.caption("🔒 Елементи на діагоналі фіксовані = 1.0 (редагування заблоковано логічно)")
+np.fill_diagonal(edited.values, 1.0)
+edited = edited.astype(float)
+st.session_state.criteria_matrix = edited
+
+st.caption("🔒 Діагональ фіксована = 1.0, симетрія оновлюється автоматично.")
 
 # ------------------------------------------------
 # Матриці альтернатив
@@ -89,22 +82,21 @@ st.caption("🔒 Елементи на діагоналі фіксовані = 1
 if "alt_matrices" not in st.session_state:
     st.session_state.alt_matrices = {}
 
-for crit in criteria_names:
-    if crit not in st.session_state.alt_matrices or len(st.session_state.alt_matrices[crit]) != num_alternatives:
-        st.session_state.alt_matrices[crit] = pd.DataFrame(
-            np.ones((num_alternatives, num_alternatives)),
-            columns=alternative_names,
-            index=alternative_names
-        )
+tabs = st.tabs(criteria_names)
 
-    with st.expander(f"⚙️ Матриця альтернатив для критерію: {crit}"):
+for tab, crit in zip(tabs, criteria_names):
+    with tab:
+        st.markdown(f"### ⚙️ Матриця альтернатив для критерію **{crit}**")
+
+        if crit not in st.session_state.alt_matrices or len(st.session_state.alt_matrices[crit]) != num_alternatives:
+            st.session_state.alt_matrices[crit] = pd.DataFrame(
+                np.ones((num_alternatives, num_alternatives)),
+                columns=alternative_names,
+                index=alternative_names
+            )
+
         prev_alt = st.session_state.alt_matrices[crit].copy()
-        edited_alt = st.data_editor(
-            prev_alt,
-            key=f"matrix_{crit}",
-            use_container_width=True,
-            num_rows="dynamic"
-        )
+        edited_alt = st.data_editor(prev_alt, key=f"matrix_{crit}", use_container_width=True)
 
         for i in range(num_alternatives):
             for j in range(num_alternatives):
@@ -118,7 +110,52 @@ for crit in criteria_names:
                         except Exception:
                             edited_alt.iloc[j, i] = 1.0
 
+        np.fill_diagonal(edited_alt.values, 1.0)
         st.session_state.alt_matrices[crit] = edited_alt
-        st.caption("🔒 Діагональ фіксована = 1.0")
 
-st.success("✅ Матриці оновлено. Симетрія працює, діагональ незмінна.")
+# ------------------------------------------------
+# РОЗРАХУНОК МЕТОДУ СААТІ
+# ------------------------------------------------
+st.markdown("---")
+st.markdown("## 🧮 Розрахунок глобальних пріоритетів")
+
+def calc_weights(matrix):
+    """Нормалізуємо матрицю і повертаємо ваги"""
+    col_sum = matrix.sum(axis=0)
+    norm = matrix / col_sum
+    weights = norm.mean(axis=1)
+    return weights
+
+# Ваги критеріїв
+criteria_weights = calc_weights(st.session_state.criteria_matrix)
+
+# Локальні ваги альтернатив
+alt_weights = {}
+for crit in criteria_names:
+    alt_weights[crit] = calc_weights(st.session_state.alt_matrices[crit])
+
+# Фінальні глобальні ваги
+global_priorities = pd.DataFrame(index=alternative_names)
+for crit, w in zip(criteria_names, criteria_weights):
+    global_priorities[crit] = alt_weights[crit] * w
+
+global_priorities["Глоб. пріор."] = global_priorities.sum(axis=1)
+global_priorities = global_priorities.sort_values("Глоб. пріор.", ascending=False)
+
+# Форматування кольорів для 1-2-3 місця
+def color_rank(row):
+    if row.name == global_priorities.index[0]:
+        return ["background-color: #b6fcb6"] * len(row)
+    elif row.name == global_priorities.index[1]:
+        return ["background-color: #fce8a6"] * len(row)
+    elif row.name == global_priorities.index[2]:
+        return ["background-color: #fcb6b6"] * len(row)
+    else:
+        return [""] * len(row)
+
+st.dataframe(
+    global_priorities.style.format("{:.3f}").apply(color_rank, axis=1),
+    use_container_width=True,
+)
+
+st.success("✅ Розрахунок завершено! Вище — фінальна таблиця глобальних пріоритетів.")

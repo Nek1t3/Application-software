@@ -27,25 +27,8 @@ criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
 alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
 
 # ------------------------------------------------
-# Побудова графу
-# ------------------------------------------------
-dot = graphviz.Digraph()
-dot.attr(size="15,8", ratio="fill", rankdir="TB")
-dot.node("Goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="lightblue")
-
-for crit in criteria_names:
-    dot.node(crit, crit, shape="box", style="filled", color="lightgreen")
-    dot.edge("Goal", crit)
-    for alt in alternative_names:
-        dot.node(alt, alt, shape="box", style="filled", color="lightyellow")
-        dot.edge(crit, alt)
-
-st.graphviz_chart(dot, width=1500, height=700)
-
-# ------------------------------------------------
 # Матриця критеріїв
 # ------------------------------------------------
-st.markdown("---")
 st.markdown("## 📊 Матриця попарних порівнянь критеріїв")
 
 if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_matrix) != num_criteria:
@@ -56,12 +39,9 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
     )
 
 prev = st.session_state.criteria_matrix.copy()
-edited = st.data_editor(
-    prev.style.format("{:.2f}"),  # 🔹 дві цифри після коми у відображенні
-    key="criteria_editor",
-    use_container_width=True
-)
+edited = st.data_editor(prev.style.format("{:.2f}"), key="criteria_editor", use_container_width=True)
 
+# --- дзеркальне оновлення + округлення до цілого ---
 for i in range(num_criteria):
     for j in range(num_criteria):
         if i == j:
@@ -70,7 +50,8 @@ for i in range(num_criteria):
             val = edited.iloc[i, j]
             if pd.notna(val) and val != 0:
                 try:
-                    edited.iloc[j, i] = round(1 / float(val), 2)  # 🔹 тепер до двох знаків
+                    inv = 1 / float(val)
+                    edited.iloc[j, i] = float(round(inv))  # 🔹 округлюємо до найближчого цілого
                 except Exception:
                     edited.iloc[j, i] = 1.00
 
@@ -78,7 +59,7 @@ np.fill_diagonal(edited.values, 1.00)
 edited = edited.astype(float)
 st.session_state.criteria_matrix = edited.round(2)
 
-st.caption("🔒 Діагональ фіксована = 1.00, усі значення округлені до двох десяткових.")
+st.caption("🔒 Діагональ фіксована = 1.00, інверсія округлюється до найближчого цілого (1–9).")
 
 # ------------------------------------------------
 # Матриці альтернатив
@@ -100,11 +81,7 @@ for tab, crit in zip(tabs, criteria_names):
             )
 
         prev_alt = st.session_state.alt_matrices[crit].copy()
-        edited_alt = st.data_editor(
-            prev_alt.style.format("{:.2f}"),
-            key=f"matrix_{crit}",
-            use_container_width=True
-        )
+        edited_alt = st.data_editor(prev_alt.style.format("{:.2f}"), key=f"matrix_{crit}", use_container_width=True)
 
         for i in range(num_alternatives):
             for j in range(num_alternatives):
@@ -114,7 +91,8 @@ for tab, crit in zip(tabs, criteria_names):
                     val = edited_alt.iloc[i, j]
                     if pd.notna(val) and val != 0:
                         try:
-                            edited_alt.iloc[j, i] = round(1 / float(val), 2)
+                            inv = 1 / float(val)
+                            edited_alt.iloc[j, i] = float(round(inv))  # 🔹 тільки цілі
                         except Exception:
                             edited_alt.iloc[j, i] = 1.00
 
@@ -122,27 +100,23 @@ for tab, crit in zip(tabs, criteria_names):
         st.session_state.alt_matrices[crit] = edited_alt.round(2)
 
 # ------------------------------------------------
-# РОЗРАХУНОК МЕТОДУ СААТІ
+# Функція для розрахунку
 # ------------------------------------------------
-st.markdown("---")
-st.markdown("## 🧮 Розрахунок глобальних пріоритетів")
-
 def calc_weights(matrix):
-    """Нормалізуємо матрицю і повертаємо ваги"""
     col_sum = matrix.sum(axis=0)
     norm = matrix / col_sum
     weights = norm.mean(axis=1)
     return weights
 
-# Ваги критеріїв
+# ------------------------------------------------
+# Розрахунок глобальних пріоритетів
+# ------------------------------------------------
+st.markdown("---")
+st.markdown("## 🧮 Розрахунок глобальних пріоритетів")
+
 criteria_weights = calc_weights(st.session_state.criteria_matrix)
+alt_weights = {crit: calc_weights(st.session_state.alt_matrices[crit]) for crit in criteria_names}
 
-# Локальні ваги альтернатив
-alt_weights = {}
-for crit in criteria_names:
-    alt_weights[crit] = calc_weights(st.session_state.alt_matrices[crit])
-
-# Фінальні глобальні ваги
 global_priorities = pd.DataFrame(index=alternative_names)
 for crit, w in zip(criteria_names, criteria_weights):
     global_priorities[crit] = alt_weights[crit] * w
@@ -150,7 +124,6 @@ for crit, w in zip(criteria_names, criteria_weights):
 global_priorities["Глоб. пріор."] = global_priorities.sum(axis=1)
 global_priorities = global_priorities.sort_values("Глоб. пріор.", ascending=False)
 
-# Форматування кольорів
 def color_rank(row):
     if row.name == global_priorities.index[0]:
         return ["background-color: #b6fcb6"] * len(row)
@@ -166,4 +139,4 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.success("✅ Розрахунок завершено! Усі значення відображаються з двома десятковими знаками (6.00, 9.00 і т.д.).")
+st.success("✅ Оновлено: усі зворотні значення тепер округлюються до цілого (наприклад, 7.14 → 7.00).")

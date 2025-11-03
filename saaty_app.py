@@ -56,25 +56,29 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
     )
 
 prev = st.session_state.criteria_matrix.copy()
-edited = st.data_editor(prev, key="criteria_editor", use_container_width=True)
+edited = st.data_editor(
+    prev.style.format("{:.2f}"),  # 🔹 дві цифри після коми у відображенні
+    key="criteria_editor",
+    use_container_width=True
+)
 
 for i in range(num_criteria):
     for j in range(num_criteria):
         if i == j:
-            edited.iloc[i, j] = 1.0
+            edited.iloc[i, j] = 1.00
         elif edited.iloc[i, j] != prev.iloc[i, j]:
             val = edited.iloc[i, j]
             if pd.notna(val) and val != 0:
                 try:
-                    edited.iloc[j, i] = round(1 / float(val), 3)
+                    edited.iloc[j, i] = round(1 / float(val), 2)  # 🔹 тепер до двох знаків
                 except Exception:
-                    edited.iloc[j, i] = 1.0
+                    edited.iloc[j, i] = 1.00
 
-np.fill_diagonal(edited.values, 1.0)
+np.fill_diagonal(edited.values, 1.00)
 edited = edited.astype(float)
-st.session_state.criteria_matrix = edited
+st.session_state.criteria_matrix = edited.round(2)
 
-st.caption("🔒 Діагональ фіксована = 1.0, симетрія оновлюється автоматично.")
+st.caption("🔒 Діагональ фіксована = 1.00, усі значення округлені до двох десяткових.")
 
 # ------------------------------------------------
 # Матриці альтернатив
@@ -96,22 +100,26 @@ for tab, crit in zip(tabs, criteria_names):
             )
 
         prev_alt = st.session_state.alt_matrices[crit].copy()
-        edited_alt = st.data_editor(prev_alt, key=f"matrix_{crit}", use_container_width=True)
+        edited_alt = st.data_editor(
+            prev_alt.style.format("{:.2f}"),
+            key=f"matrix_{crit}",
+            use_container_width=True
+        )
 
         for i in range(num_alternatives):
             for j in range(num_alternatives):
                 if i == j:
-                    edited_alt.iloc[i, j] = 1.0
+                    edited_alt.iloc[i, j] = 1.00
                 elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
                     val = edited_alt.iloc[i, j]
                     if pd.notna(val) and val != 0:
                         try:
-                            edited_alt.iloc[j, i] = round(1 / float(val), 3)
+                            edited_alt.iloc[j, i] = round(1 / float(val), 2)
                         except Exception:
-                            edited_alt.iloc[j, i] = 1.0
+                            edited_alt.iloc[j, i] = 1.00
 
-        np.fill_diagonal(edited_alt.values, 1.0)
-        st.session_state.alt_matrices[crit] = edited_alt
+        np.fill_diagonal(edited_alt.values, 1.00)
+        st.session_state.alt_matrices[crit] = edited_alt.round(2)
 
 # ------------------------------------------------
 # РОЗРАХУНОК МЕТОДУ СААТІ
@@ -142,7 +150,7 @@ for crit, w in zip(criteria_names, criteria_weights):
 global_priorities["Глоб. пріор."] = global_priorities.sum(axis=1)
 global_priorities = global_priorities.sort_values("Глоб. пріор.", ascending=False)
 
-# Форматування кольорів для 1-2-3 місця
+# Форматування кольорів
 def color_rank(row):
     if row.name == global_priorities.index[0]:
         return ["background-color: #b6fcb6"] * len(row)
@@ -158,4 +166,4 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.success("✅ Розрахунок завершено! Вище — фінальна таблиця глобальних пріоритетів.")
+st.success("✅ Розрахунок завершено! Усі значення відображаються з двома десятковими знаками (6.00, 9.00 і т.д.).")

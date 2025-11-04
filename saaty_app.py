@@ -41,25 +41,26 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
 prev = st.session_state.criteria_matrix.copy()
 edited = st.data_editor(prev.style.format("{:.3f}"), key="criteria_editor", use_container_width=True)
 
-# --- дзеркальне оновлення + дробові значення ---
+# --- дзеркальне оновлення + фіксовані три знаки після коми ---
 for i in range(num_criteria):
     for j in range(num_criteria):
         if i == j:
-            edited.iloc[i, j] = 1.0
+            edited.iloc[i, j] = 1.000
         elif edited.iloc[i, j] != prev.iloc[i, j]:
             val = edited.iloc[i, j]
             if pd.notna(val) and val != 0:
                 try:
                     inv = 1 / float(val)
-                    edited.iloc[j, i] = round(inv, 3)  # 🔹 тепер не ціле, а дробове значення
+                    inv = float(f"{inv:.3f}")  # 🔹 точно 3 знаки (9.000 замість 9.009)
+                    edited.iloc[j, i] = inv
                 except Exception:
-                    edited.iloc[j, i] = 1.0
+                    edited.iloc[j, i] = 1.000
 
-np.fill_diagonal(edited.values, 1.0)
+np.fill_diagonal(edited.values, 1.000)
 edited = edited.astype(float)
-st.session_state.criteria_matrix = edited.round(3)
+st.session_state.criteria_matrix = edited
 
-st.caption("🔒 Діагональ фіксована = 1.0. Якщо введено 9 → протилежна клітинка стане 1/9 = 0.111.")
+st.caption("🔒 Діагональ фіксована = 1.000. Всі значення відображаються з трьома десятковими знаками (9.000, 0.111, тощо).")
 
 # ------------------------------------------------
 # Матриці альтернатив
@@ -86,21 +87,22 @@ for tab, crit in zip(tabs, criteria_names):
         for i in range(num_alternatives):
             for j in range(num_alternatives):
                 if i == j:
-                    edited_alt.iloc[i, j] = 1.0
+                    edited_alt.iloc[i, j] = 1.000
                 elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
                     val = edited_alt.iloc[i, j]
                     if pd.notna(val) and val != 0:
                         try:
                             inv = 1 / float(val)
-                            edited_alt.iloc[j, i] = round(inv, 3)
+                            inv = float(f"{inv:.3f}")  # 🔹 фіксуємо формат 0.111, 9.000 тощо
+                            edited_alt.iloc[j, i] = inv
                         except Exception:
-                            edited_alt.iloc[j, i] = 1.0
+                            edited_alt.iloc[j, i] = 1.000
 
-        np.fill_diagonal(edited_alt.values, 1.0)
-        st.session_state.alt_matrices[crit] = edited_alt.round(3)
+        np.fill_diagonal(edited_alt.values, 1.000)
+        st.session_state.alt_matrices[crit] = edited_alt
 
 # ------------------------------------------------
-# Функція для розрахунку
+# Розрахунок
 # ------------------------------------------------
 def calc_weights(matrix):
     col_sum = matrix.sum(axis=0)
@@ -108,9 +110,6 @@ def calc_weights(matrix):
     weights = norm.mean(axis=1)
     return weights
 
-# ------------------------------------------------
-# Розрахунок глобальних пріоритетів
-# ------------------------------------------------
 st.markdown("---")
 st.markdown("## 🧮 Розрахунок глобальних пріоритетів")
 
@@ -139,4 +138,4 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.success("✅ Тепер підтримуються дробові значення — наприклад 9 ↔ 1/9 = 0.111.")
+st.success("✅ Всі значення тепер точно у форматі X.000, без 9.009 чи 6.993.")

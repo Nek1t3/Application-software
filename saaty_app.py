@@ -1,16 +1,12 @@
 import streamlit as st
-import graphviz
 import pandas as pd
 import numpy as np
 
-# ------------------------------------------------
-# Налаштування
-# ------------------------------------------------
 st.set_page_config(page_title="Метод Сааті", layout="wide")
 st.title("Метод Сааті — Ієрархія задачі")
 
 # ------------------------------------------------
-# Кількість критеріїв і альтернатив
+# Ініціалізація
 # ------------------------------------------------
 if "num_criteria" not in st.session_state:
     st.session_state.num_criteria = 3
@@ -38,7 +34,7 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
         index=criteria_names
     )
 
-# Редагування користувачем
+# показуємо матрицю
 edited = st.data_editor(
     st.session_state.criteria_matrix.style.format("{:.3f}"),
     key="criteria_editor",
@@ -46,35 +42,36 @@ edited = st.data_editor(
 )
 
 # ------------------------------------------------
-# Кнопка "Зберегти зміни"
+# Кнопка збереження
 # ------------------------------------------------
 if st.button("💾 Зберегти зміни в матриці критеріїв"):
+    # отримуємо поточні дані прямо з session_state (після редагування)
+    current_data = st.session_state["criteria_editor"].copy()
+    edited_df = pd.DataFrame(current_data, columns=criteria_names, index=criteria_names)
+
     prev = st.session_state.criteria_matrix.copy()
 
     for i in range(num_criteria):
         for j in range(num_criteria):
             if i == j:
-                edited.iloc[i, j] = 1.000
-            elif edited.iloc[i, j] != prev.iloc[i, j]:
-                val = float(edited.iloc[i, j])
+                edited_df.iloc[i, j] = 1.000
+            elif edited_df.iloc[i, j] != prev.iloc[i, j]:
+                val = float(edited_df.iloc[i, j])
                 if pd.notna(val) and val != 0:
                     inv = round(1 / val, 3)
-
-                    # Коригуємо похибку 9.009 → 9.000
                     if abs(inv - round(inv)) < 0.01:
                         inv = float(f"{round(inv):.3f}")
                     if abs(val - round(val)) < 0.01:
                         val = float(f"{round(val):.3f}")
+                    edited_df.iloc[i, j] = val
+                    edited_df.iloc[j, i] = inv
 
-                    edited.iloc[i, j] = val
-                    edited.iloc[j, i] = inv
+    np.fill_diagonal(edited_df.values, 1.000)
+    st.session_state.criteria_matrix = edited_df.astype(float)
 
-    np.fill_diagonal(edited.values, 1.000)
-    edited = edited.astype(float)
-    st.session_state.criteria_matrix = edited
-    st.success("✅ Матриця оновлена! Симетричні значення збережено (n ↔ 1/n).")
+    st.success("✅ Симетричні значення оновлено одразу після натискання!")
 
-st.caption("🔒 Діагональ = 1.000. Щоб оновити симетрію — натисніть **«💾 Зберегти зміни»**.")
+st.caption("🔒 Діагональ = 1.000. Натисни «💾 Зберегти зміни», щоб оновити симетрію.")
 
 # ------------------------------------------------
 # Матриці альтернатив
@@ -83,7 +80,6 @@ if "alt_matrices" not in st.session_state:
     st.session_state.alt_matrices = {}
 
 tabs = st.tabs(criteria_names)
-
 for tab, crit in zip(tabs, criteria_names):
     with tab:
         st.markdown(f"### ⚙️ Матриця альтернатив для критерію **{crit}**")
@@ -102,30 +98,28 @@ for tab, crit in zip(tabs, criteria_names):
         )
 
         if st.button(f"💾 Зберегти зміни ({crit})"):
+            current_alt = st.session_state[f"matrix_{crit}"].copy()
+            edited_alt_df = pd.DataFrame(current_alt, columns=alternative_names, index=alternative_names)
             prev_alt = st.session_state.alt_matrices[crit].copy()
 
             for i in range(num_alternatives):
                 for j in range(num_alternatives):
                     if i == j:
-                        edited_alt.iloc[i, j] = 1.000
-                    elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
-                        val = float(edited_alt.iloc[i, j])
+                        edited_alt_df.iloc[i, j] = 1.000
+                    elif edited_alt_df.iloc[i, j] != prev_alt.iloc[i, j]:
+                        val = float(edited_alt_df.iloc[i, j])
                         if pd.notna(val) and val != 0:
                             inv = round(1 / val, 3)
-
-                            # Коригуємо похибку 9.009 → 9.000
                             if abs(inv - round(inv)) < 0.01:
                                 inv = float(f"{round(inv):.3f}")
                             if abs(val - round(val)) < 0.01:
                                 val = float(f"{round(val):.3f}")
+                            edited_alt_df.iloc[i, j] = val
+                            edited_alt_df.iloc[j, i] = inv
 
-                            edited_alt.iloc[i, j] = val
-                            edited_alt.iloc[j, i] = inv
-
-            np.fill_diagonal(edited_alt.values, 1.000)
-            edited_alt = edited_alt.astype(float)
-            st.session_state.alt_matrices[crit] = edited_alt
-            st.success(f"✅ Матриця для критерію {crit} оновлена!")
+            np.fill_diagonal(edited_alt_df.values, 1.000)
+            st.session_state.alt_matrices[crit] = edited_alt_df.astype(float)
+            st.success(f"✅ Симетрія оновлена для {crit}!")
 
 # ------------------------------------------------
 # Розрахунок
@@ -164,4 +158,4 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.success("✅ Тепер симетричні значення оновлюються тільки після натискання кнопки «Зберегти».")
+st.success("✅ Симетричні значення тепер оновлюються відразу після натискання «Зберегти».")

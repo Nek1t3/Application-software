@@ -38,37 +38,43 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
         index=criteria_names
     )
 
-prev = st.session_state.criteria_matrix.copy()
-edited = st.data_editor(prev.style.format("{:.3f}"), key="criteria_editor", use_container_width=True)
+# Редагування користувачем
+edited = st.data_editor(
+    st.session_state.criteria_matrix.style.format("{:.3f}"),
+    key="criteria_editor",
+    use_container_width=True
+)
 
-# --- дзеркальне оновлення без повторного обчислення, з точним округленням ---
-for i in range(num_criteria):
-    for j in range(num_criteria):
-        if i == j:
-            edited.iloc[i, j] = 1.000
-        elif edited.iloc[i, j] != prev.iloc[i, j]:
-            val = float(edited.iloc[i, j])
-            if pd.notna(val) and val != 0:
-                # ✅ тут фіксуємо точне округлення до 3 знаків після коми
-                inv = round(1 / val, 3)
+# ------------------------------------------------
+# Кнопка "Зберегти зміни"
+# ------------------------------------------------
+if st.button("💾 Зберегти зміни в матриці критеріїв"):
+    prev = st.session_state.criteria_matrix.copy()
 
-                # 🔹 і якщо результат майже цілий (наприклад 9.009 → 9.000)
-                # ми округлюємо його до найближчого цілого з .000
-                if abs(inv - round(inv)) < 0.01:
-                    inv = float(f"{round(inv):.3f}")
+    for i in range(num_criteria):
+        for j in range(num_criteria):
+            if i == j:
+                edited.iloc[i, j] = 1.000
+            elif edited.iloc[i, j] != prev.iloc[i, j]:
+                val = float(edited.iloc[i, j])
+                if pd.notna(val) and val != 0:
+                    inv = round(1 / val, 3)
 
-                if abs(val - round(val)) < 0.01:
-                    val = float(f"{round(val):.3f}")
+                    # Коригуємо похибку 9.009 → 9.000
+                    if abs(inv - round(inv)) < 0.01:
+                        inv = float(f"{round(inv):.3f}")
+                    if abs(val - round(val)) < 0.01:
+                        val = float(f"{round(val):.3f}")
 
-                edited.iloc[i, j] = val
-                edited.iloc[j, i] = inv
+                    edited.iloc[i, j] = val
+                    edited.iloc[j, i] = inv
 
+    np.fill_diagonal(edited.values, 1.000)
+    edited = edited.astype(float)
+    st.session_state.criteria_matrix = edited
+    st.success("✅ Матриця оновлена! Симетричні значення збережено (n ↔ 1/n).")
 
-np.fill_diagonal(edited.values, 1.000)
-edited = edited.astype(float)
-st.session_state.criteria_matrix = edited
-
-st.caption("🔒 Діагональ = 1.000. При введенні числа n у комірку — симетрична стає 1/n (без повторних перерахунків).")
+st.caption("🔒 Діагональ = 1.000. Щоб оновити симетрію — натисніть **«💾 Зберегти зміни»**.")
 
 # ------------------------------------------------
 # Матриці альтернатив
@@ -89,22 +95,37 @@ for tab, crit in zip(tabs, criteria_names):
                 index=alternative_names
             )
 
-        prev_alt = st.session_state.alt_matrices[crit].copy()
-        edited_alt = st.data_editor(prev_alt.style.format("{:.3f}"), key=f"matrix_{crit}", use_container_width=True)
+        edited_alt = st.data_editor(
+            st.session_state.alt_matrices[crit].style.format("{:.3f}"),
+            key=f"matrix_{crit}",
+            use_container_width=True
+        )
 
-        for i in range(num_alternatives):
-            for j in range(num_alternatives):
-                if i == j:
-                    edited_alt.iloc[i, j] = 1.000
-                elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
-                    val = edited_alt.iloc[i, j]
-                    if pd.notna(val) and val != 0:
-                        inv = float(f"{1/float(val):.3f}")
-                        if edited_alt.iloc[j, i] != val:
+        if st.button(f"💾 Зберегти зміни ({crit})"):
+            prev_alt = st.session_state.alt_matrices[crit].copy()
+
+            for i in range(num_alternatives):
+                for j in range(num_alternatives):
+                    if i == j:
+                        edited_alt.iloc[i, j] = 1.000
+                    elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
+                        val = float(edited_alt.iloc[i, j])
+                        if pd.notna(val) and val != 0:
+                            inv = round(1 / val, 3)
+
+                            # Коригуємо похибку 9.009 → 9.000
+                            if abs(inv - round(inv)) < 0.01:
+                                inv = float(f"{round(inv):.3f}")
+                            if abs(val - round(val)) < 0.01:
+                                val = float(f"{round(val):.3f}")
+
+                            edited_alt.iloc[i, j] = val
                             edited_alt.iloc[j, i] = inv
 
-        np.fill_diagonal(edited_alt.values, 1.000)
-        st.session_state.alt_matrices[crit] = edited_alt
+            np.fill_diagonal(edited_alt.values, 1.000)
+            edited_alt = edited_alt.astype(float)
+            st.session_state.alt_matrices[crit] = edited_alt
+            st.success(f"✅ Матриця для критерію {crit} оновлена!")
 
 # ------------------------------------------------
 # Розрахунок
@@ -143,4 +164,4 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.success("✅ Тепер симетричні значення обчислюються лише один раз (n ↔ 1/n) без повторних ділення.")
+st.success("✅ Тепер симетричні значення оновлюються тільки після натискання кнопки «Зберегти».")

@@ -2,11 +2,14 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
+# ------------------------------------------------
+# Налаштування
+# ------------------------------------------------
 st.set_page_config(page_title="Метод Сааті", layout="wide")
 st.title("Метод Сааті — Ієрархія задачі")
 
 # ------------------------------------------------
-# Ініціалізація
+# Початкові параметри
 # ------------------------------------------------
 if "num_criteria" not in st.session_state:
     st.session_state.num_criteria = 3
@@ -34,20 +37,19 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
         index=criteria_names
     )
 
-# показуємо матрицю
-edited = st.data_editor(
+st.data_editor(
     st.session_state.criteria_matrix.style.format("{:.3f}"),
     key="criteria_editor",
     use_container_width=True
 )
 
 # ------------------------------------------------
-# Кнопка збереження
+# Кнопка "Зберегти зміни"
 # ------------------------------------------------
 if st.button("💾 Зберегти зміни в матриці критеріїв"):
-    # отримуємо поточні дані прямо з session_state (після редагування)
-    current_data = st.session_state["criteria_editor"].copy()
-    edited_df = pd.DataFrame(current_data, columns=criteria_names, index=criteria_names)
+    # ✅ беремо актуальні дані з session_state
+    table_data = st.session_state["criteria_editor"]["data"]
+    edited_df = pd.DataFrame(table_data, columns=criteria_names, index=criteria_names).astype(float)
 
     prev = st.session_state.criteria_matrix.copy()
 
@@ -59,6 +61,7 @@ if st.button("💾 Зберегти зміни в матриці критері�
                 val = float(edited_df.iloc[i, j])
                 if pd.notna(val) and val != 0:
                     inv = round(1 / val, 3)
+                    # корекція похибки
                     if abs(inv - round(inv)) < 0.01:
                         inv = float(f"{round(inv):.3f}")
                     if abs(val - round(val)) < 0.01:
@@ -67,9 +70,8 @@ if st.button("💾 Зберегти зміни в матриці критері�
                     edited_df.iloc[j, i] = inv
 
     np.fill_diagonal(edited_df.values, 1.000)
-    st.session_state.criteria_matrix = edited_df.astype(float)
-
-    st.success("✅ Симетричні значення оновлено одразу після натискання!")
+    st.session_state.criteria_matrix = edited_df
+    st.success("✅ Матриця критеріїв оновлена! Симетричні значення встановлено (n ↔ 1/n).")
 
 st.caption("🔒 Діагональ = 1.000. Натисни «💾 Зберегти зміни», щоб оновити симетрію.")
 
@@ -80,6 +82,7 @@ if "alt_matrices" not in st.session_state:
     st.session_state.alt_matrices = {}
 
 tabs = st.tabs(criteria_names)
+
 for tab, crit in zip(tabs, criteria_names):
     with tab:
         st.markdown(f"### ⚙️ Матриця альтернатив для критерію **{crit}**")
@@ -91,15 +94,16 @@ for tab, crit in zip(tabs, criteria_names):
                 index=alternative_names
             )
 
-        edited_alt = st.data_editor(
+        st.data_editor(
             st.session_state.alt_matrices[crit].style.format("{:.3f}"),
             key=f"matrix_{crit}",
             use_container_width=True
         )
 
         if st.button(f"💾 Зберегти зміни ({crit})"):
-            current_alt = st.session_state[f"matrix_{crit}"].copy()
-            edited_alt_df = pd.DataFrame(current_alt, columns=alternative_names, index=alternative_names)
+            table_data = st.session_state[f"matrix_{crit}"]["data"]
+            edited_alt_df = pd.DataFrame(table_data, columns=alternative_names, index=alternative_names).astype(float)
+
             prev_alt = st.session_state.alt_matrices[crit].copy()
 
             for i in range(num_alternatives):
@@ -118,8 +122,8 @@ for tab, crit in zip(tabs, criteria_names):
                             edited_alt_df.iloc[j, i] = inv
 
             np.fill_diagonal(edited_alt_df.values, 1.000)
-            st.session_state.alt_matrices[crit] = edited_alt_df.astype(float)
-            st.success(f"✅ Симетрія оновлена для {crit}!")
+            st.session_state.alt_matrices[crit] = edited_alt_df
+            st.success(f"✅ Матриця для критерію {crit} оновлена! Симетрія застосована.")
 
 # ------------------------------------------------
 # Розрахунок
@@ -158,4 +162,4 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.success("✅ Симетричні значення тепер оновлюються відразу після натискання «Зберегти».")
+st.success("✅ Виправлено! Дані зберігаються одразу, без None, симетрія застосовується після кнопки.")

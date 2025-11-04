@@ -39,27 +39,27 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
     )
 
 prev = st.session_state.criteria_matrix.copy()
-edited = st.data_editor(prev.style.format("{:.2f}"), key="criteria_editor", use_container_width=True)
+edited = st.data_editor(prev.style.format("{:.3f}"), key="criteria_editor", use_container_width=True)
 
-# --- дзеркальне оновлення + округлення до цілого ---
+# --- дзеркальне оновлення + дробові значення ---
 for i in range(num_criteria):
     for j in range(num_criteria):
         if i == j:
-            edited.iloc[i, j] = 1.00
+            edited.iloc[i, j] = 1.0
         elif edited.iloc[i, j] != prev.iloc[i, j]:
             val = edited.iloc[i, j]
             if pd.notna(val) and val != 0:
                 try:
                     inv = 1 / float(val)
-                    edited.iloc[j, i] = float(round(inv))  # 🔹 округлюємо до найближчого цілого
+                    edited.iloc[j, i] = round(inv, 3)  # 🔹 тепер не ціле, а дробове значення
                 except Exception:
-                    edited.iloc[j, i] = 1.00
+                    edited.iloc[j, i] = 1.0
 
-np.fill_diagonal(edited.values, 1.00)
+np.fill_diagonal(edited.values, 1.0)
 edited = edited.astype(float)
-st.session_state.criteria_matrix = edited.round(2)
+st.session_state.criteria_matrix = edited.round(3)
 
-st.caption("🔒 Діагональ фіксована = 1.00, інверсія округлюється до найближчого цілого (1–9).")
+st.caption("🔒 Діагональ фіксована = 1.0. Якщо введено 9 → протилежна клітинка стане 1/9 = 0.111.")
 
 # ------------------------------------------------
 # Матриці альтернатив
@@ -81,23 +81,23 @@ for tab, crit in zip(tabs, criteria_names):
             )
 
         prev_alt = st.session_state.alt_matrices[crit].copy()
-        edited_alt = st.data_editor(prev_alt.style.format("{:.2f}"), key=f"matrix_{crit}", use_container_width=True)
+        edited_alt = st.data_editor(prev_alt.style.format("{:.3f}"), key=f"matrix_{crit}", use_container_width=True)
 
         for i in range(num_alternatives):
             for j in range(num_alternatives):
                 if i == j:
-                    edited_alt.iloc[i, j] = 1.00
+                    edited_alt.iloc[i, j] = 1.0
                 elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
                     val = edited_alt.iloc[i, j]
                     if pd.notna(val) and val != 0:
                         try:
                             inv = 1 / float(val)
-                            edited_alt.iloc[j, i] = float(round(inv))  # 🔹 тільки цілі
+                            edited_alt.iloc[j, i] = round(inv, 3)
                         except Exception:
-                            edited_alt.iloc[j, i] = 1.00
+                            edited_alt.iloc[j, i] = 1.0
 
-        np.fill_diagonal(edited_alt.values, 1.00)
-        st.session_state.alt_matrices[crit] = edited_alt.round(2)
+        np.fill_diagonal(edited_alt.values, 1.0)
+        st.session_state.alt_matrices[crit] = edited_alt.round(3)
 
 # ------------------------------------------------
 # Функція для розрахунку
@@ -139,4 +139,4 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.success("✅ Оновлено: усі зворотні значення тепер округлюються до цілого (наприклад, 7.14 → 7.00).")
+st.success("✅ Тепер підтримуються дробові значення — наприклад 9 ↔ 1/9 = 0.111.")

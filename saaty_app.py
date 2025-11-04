@@ -41,7 +41,7 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
 prev = st.session_state.criteria_matrix.copy()
 edited = st.data_editor(prev.style.format("{:.3f}"), key="criteria_editor", use_container_width=True)
 
-# --- дзеркальне оновлення + фіксовані три знаки після коми ---
+# --- дзеркальне оновлення (без повторного обчислення) ---
 for i in range(num_criteria):
     for j in range(num_criteria):
         if i == j:
@@ -49,18 +49,16 @@ for i in range(num_criteria):
         elif edited.iloc[i, j] != prev.iloc[i, j]:
             val = edited.iloc[i, j]
             if pd.notna(val) and val != 0:
-                try:
-                    inv = 1 / float(val)
-                    inv = float(f"{inv:.3f}")  # 🔹 точно 3 знаки (9.000 замість 9.009)
+                # 🔹 Встановлюємо симетричне значення 1/val лише один раз
+                inv = float(f"{1/float(val):.3f}")
+                if edited.iloc[j, i] != val:  # щоб не оновлювати повторно
                     edited.iloc[j, i] = inv
-                except Exception:
-                    edited.iloc[j, i] = 1.000
 
 np.fill_diagonal(edited.values, 1.000)
 edited = edited.astype(float)
 st.session_state.criteria_matrix = edited
 
-st.caption("🔒 Діагональ фіксована = 1.000. Всі значення відображаються з трьома десятковими знаками (9.000, 0.111, тощо).")
+st.caption("🔒 Діагональ = 1.000. При введенні числа n у комірку — симетрична стає 1/n (без повторних перерахунків).")
 
 # ------------------------------------------------
 # Матриці альтернатив
@@ -91,12 +89,9 @@ for tab, crit in zip(tabs, criteria_names):
                 elif edited_alt.iloc[i, j] != prev_alt.iloc[i, j]:
                     val = edited_alt.iloc[i, j]
                     if pd.notna(val) and val != 0:
-                        try:
-                            inv = 1 / float(val)
-                            inv = float(f"{inv:.3f}")  # 🔹 фіксуємо формат 0.111, 9.000 тощо
+                        inv = float(f"{1/float(val):.3f}")
+                        if edited_alt.iloc[j, i] != val:
                             edited_alt.iloc[j, i] = inv
-                        except Exception:
-                            edited_alt.iloc[j, i] = 1.000
 
         np.fill_diagonal(edited_alt.values, 1.000)
         st.session_state.alt_matrices[crit] = edited_alt
@@ -138,4 +133,4 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.success("✅ Всі значення тепер точно у форматі X.000, без 9.009 чи 6.993.")
+st.success("✅ Тепер симетричні значення обчислюються лише один раз (n ↔ 1/n) без повторних ділення.")

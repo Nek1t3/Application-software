@@ -41,18 +41,28 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
 prev = st.session_state.criteria_matrix.copy()
 edited = st.data_editor(prev.style.format("{:.3f}"), key="criteria_editor", use_container_width=True)
 
-# --- дзеркальне оновлення (без повторного обчислення) ---
+# --- дзеркальне оновлення без повторного обчислення, з точним округленням ---
 for i in range(num_criteria):
     for j in range(num_criteria):
         if i == j:
             edited.iloc[i, j] = 1.000
         elif edited.iloc[i, j] != prev.iloc[i, j]:
-            val = edited.iloc[i, j]
+            val = float(edited.iloc[i, j])
             if pd.notna(val) and val != 0:
-                # 🔹 Встановлюємо симетричне значення 1/val лише один раз
-                inv = float(f"{1/float(val):.3f}")
-                if edited.iloc[j, i] != val:  # щоб не оновлювати повторно
-                    edited.iloc[j, i] = inv
+                # ✅ тут фіксуємо точне округлення до 3 знаків після коми
+                inv = round(1 / val, 3)
+
+                # 🔹 і якщо результат майже цілий (наприклад 9.009 → 9.000)
+                # ми округлюємо його до найближчого цілого з .000
+                if abs(inv - round(inv)) < 0.01:
+                    inv = float(f"{round(inv):.3f}")
+
+                if abs(val - round(val)) < 0.01:
+                    val = float(f"{round(val):.3f}")
+
+                edited.iloc[i, j] = val
+                edited.iloc[j, i] = inv
+
 
 np.fill_diagonal(edited.values, 1.000)
 edited = edited.astype(float)

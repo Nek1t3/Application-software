@@ -26,7 +26,7 @@ criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
 alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
 
 # ------------------------------------------------
-# Матриця критеріїв
+# Ініціалізація головної матриці
 # ------------------------------------------------
 st.markdown("## 📊 Матриця попарних порівнянь критеріїв")
 
@@ -37,18 +37,20 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
         index=criteria_names
     )
 
-st.data_editor(
-    st.session_state.criteria_matrix.style.format("{:.3f}"),
+# редагована копія
+edited = st.data_editor(
+    st.session_state.criteria_matrix,
     key="criteria_editor",
-    use_container_width=True
+    use_container_width=True,
 )
 
 # ------------------------------------------------
 # Кнопка "Зберегти зміни"
 # ------------------------------------------------
 if st.button("💾 Зберегти зміни в матриці критеріїв"):
+    # беремо дані, які відображаються в таблиці
     editor_state = st.session_state.get("criteria_editor", None)
-    if editor_state and "data" in editor_state:
+    if editor_state is not None and "data" in editor_state:
         table_data = editor_state["data"]
         edited_df = pd.DataFrame(table_data, columns=criteria_names, index=criteria_names).astype(float)
     else:
@@ -64,7 +66,6 @@ if st.button("💾 Зберегти зміни в матриці критері�
                 val = float(edited_df.iloc[i, j])
                 if pd.notna(val) and val != 0:
                     inv = round(1 / val, 3)
-                    # Коригуємо похибки від float
                     if abs(inv - round(inv)) < 0.01:
                         inv = float(f"{round(inv):.3f}")
                     if abs(val - round(val)) < 0.01:
@@ -74,7 +75,10 @@ if st.button("💾 Зберегти зміни в матриці критері�
 
     np.fill_diagonal(edited_df.values, 1.000)
     st.session_state.criteria_matrix = edited_df
-    st.success("✅ Матриця критеріїв оновлена! Симетричні значення застосовані (n ↔ 1/n).")
+
+    # 🔁 Перемальовуємо інтерфейс
+    st.success("✅ Матриця критеріїв оновлена! Симетричні значення застосовані.")
+    st.experimental_rerun()
 
 st.caption("🔒 Діагональ = 1.000. Натисни «💾 Зберегти зміни», щоб оновити симетрію.")
 
@@ -97,15 +101,15 @@ for tab, crit in zip(tabs, criteria_names):
                 index=alternative_names
             )
 
-        st.data_editor(
-            st.session_state.alt_matrices[crit].style.format("{:.3f}"),
+        alt_edited = st.data_editor(
+            st.session_state.alt_matrices[crit],
             key=f"matrix_{crit}",
-            use_container_width=True
+            use_container_width=True,
         )
 
         if st.button(f"💾 Зберегти зміни ({crit})"):
             editor_state = st.session_state.get(f"matrix_{crit}", None)
-            if editor_state and "data" in editor_state:
+            if editor_state is not None and "data" in editor_state:
                 table_data = editor_state["data"]
                 edited_alt_df = pd.DataFrame(table_data, columns=alternative_names, index=alternative_names).astype(float)
             else:
@@ -130,10 +134,11 @@ for tab, crit in zip(tabs, criteria_names):
 
             np.fill_diagonal(edited_alt_df.values, 1.000)
             st.session_state.alt_matrices[crit] = edited_alt_df
-            st.success(f"✅ Матриця для {crit} оновлена! Симетричні значення встановлено.")
+            st.success(f"✅ Матриця для {crit} оновлена! Симетричні значення застосовано.")
+            st.experimental_rerun()
 
 # ------------------------------------------------
-# Розрахунок
+# Розрахунок глобальних пріоритетів
 # ------------------------------------------------
 def calc_weights(matrix):
     col_sum = matrix.sum(axis=0)
@@ -169,4 +174,4 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.success("✅ Виправлено! Жодних KeyError або None — дані стабільно оновлюються після натискання «Зберегти».")
+st.success("✅ Симетрія оновлюється одразу після натискання кнопки без перезавантаження сторінки.")

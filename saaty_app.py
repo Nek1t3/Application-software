@@ -26,7 +26,7 @@ criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
 alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
 
 # ------------------------------------------------
-# Ініціалізація головної матриці
+# Матриця критеріїв
 # ------------------------------------------------
 st.markdown("## 📊 Матриця попарних порівнянь критеріїв")
 
@@ -37,8 +37,8 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
         index=criteria_names
     )
 
-# редагована копія
-edited = st.data_editor(
+# Редактор таблиці
+criteria_df = st.data_editor(
     st.session_state.criteria_matrix,
     key="criteria_editor",
     use_container_width=True,
@@ -47,15 +47,11 @@ edited = st.data_editor(
 # ------------------------------------------------
 # Кнопка "Зберегти зміни"
 # ------------------------------------------------
-if st.button("💾 Зберегти зміни в матриці критеріїв"):
-    # беремо дані, які відображаються в таблиці
-    editor_state = st.session_state.get("criteria_editor", None)
-    if editor_state is not None and "data" in editor_state:
-        table_data = editor_state["data"]
-        edited_df = pd.DataFrame(table_data, columns=criteria_names, index=criteria_names).astype(float)
-    else:
-        edited_df = st.session_state.criteria_matrix.copy()
+save_clicked = st.button("💾 Зберегти зміни в матриці критеріїв")
 
+if save_clicked:
+    # Копіюємо актуальні значення з редактора
+    edited_df = pd.DataFrame(criteria_df, columns=criteria_names, index=criteria_names).astype(float)
     prev = st.session_state.criteria_matrix.copy()
 
     for i in range(num_criteria):
@@ -66,6 +62,7 @@ if st.button("💾 Зберегти зміни в матриці критері�
                 val = float(edited_df.iloc[i, j])
                 if pd.notna(val) and val != 0:
                     inv = round(1 / val, 3)
+                    # невелике вирівнювання
                     if abs(inv - round(inv)) < 0.01:
                         inv = float(f"{round(inv):.3f}")
                     if abs(val - round(val)) < 0.01:
@@ -75,10 +72,10 @@ if st.button("💾 Зберегти зміни в матриці критері�
 
     np.fill_diagonal(edited_df.values, 1.000)
     st.session_state.criteria_matrix = edited_df
-
-    # 🔁 Перемальовуємо інтерфейс
     st.success("✅ Матриця критеріїв оновлена! Симетричні значення застосовані.")
-    st.experimental_rerun()
+
+    # 🟢 Миттєво перерисовуємо без experimental_rerun
+    st.dataframe(edited_df, use_container_width=True)
 
 st.caption("🔒 Діагональ = 1.000. Натисни «💾 Зберегти зміни», щоб оновити симетрію.")
 
@@ -101,20 +98,16 @@ for tab, crit in zip(tabs, criteria_names):
                 index=alternative_names
             )
 
-        alt_edited = st.data_editor(
+        alt_df = st.data_editor(
             st.session_state.alt_matrices[crit],
             key=f"matrix_{crit}",
             use_container_width=True,
         )
 
-        if st.button(f"💾 Зберегти зміни ({crit})"):
-            editor_state = st.session_state.get(f"matrix_{crit}", None)
-            if editor_state is not None and "data" in editor_state:
-                table_data = editor_state["data"]
-                edited_alt_df = pd.DataFrame(table_data, columns=alternative_names, index=alternative_names).astype(float)
-            else:
-                edited_alt_df = st.session_state.alt_matrices[crit].copy()
+        save_alt = st.button(f"💾 Зберегти зміни ({crit})")
 
+        if save_alt:
+            edited_alt_df = pd.DataFrame(alt_df, columns=alternative_names, index=alternative_names).astype(float)
             prev_alt = st.session_state.alt_matrices[crit].copy()
 
             for i in range(num_alternatives):
@@ -135,7 +128,7 @@ for tab, crit in zip(tabs, criteria_names):
             np.fill_diagonal(edited_alt_df.values, 1.000)
             st.session_state.alt_matrices[crit] = edited_alt_df
             st.success(f"✅ Матриця для {crit} оновлена! Симетричні значення застосовано.")
-            st.experimental_rerun()
+            st.dataframe(edited_alt_df, use_container_width=True)
 
 # ------------------------------------------------
 # Розрахунок глобальних пріоритетів
@@ -174,4 +167,4 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.success("✅ Симетрія оновлюється одразу після натискання кнопки без перезавантаження сторінки.")
+st.success("✅ Симетричні значення тепер змінюються одразу після натискання кнопки.")

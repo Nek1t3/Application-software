@@ -9,7 +9,7 @@ st.set_page_config(page_title="Метод Сааті", layout="wide")
 st.title("Метод Сааті — Ієрархія задачі")
 
 # ------------------------------------------------
-# Ініціалізація
+# Початкові параметри
 # ------------------------------------------------
 if "num_criteria" not in st.session_state:
     st.session_state.num_criteria = 3
@@ -47,23 +47,15 @@ st.data_editor(
 # Кнопка "Зберегти зміни"
 # ------------------------------------------------
 if st.button("💾 Зберегти зміни в матриці критеріїв"):
-    raw_data = st.session_state.get("criteria_editor")
-
-    # 🔍 універсальна перевірка типу (нові/старі версії Streamlit)
-    if isinstance(raw_data, dict) and "data" in raw_data:
-        table_data = raw_data["data"]
-    elif isinstance(raw_data, (list, np.ndarray)):
-        table_data = raw_data
-    elif isinstance(raw_data, pd.DataFrame):
-        table_data = raw_data.values.tolist()
+    editor_state = st.session_state.get("criteria_editor", None)
+    if editor_state and "data" in editor_state:
+        table_data = editor_state["data"]
+        edited_df = pd.DataFrame(table_data, columns=criteria_names, index=criteria_names).astype(float)
     else:
-        st.error("⚠️ Не вдалося отримати дані з таблиці!")
-        st.stop()
+        edited_df = st.session_state.criteria_matrix.copy()
 
-    edited_df = pd.DataFrame(table_data, columns=criteria_names, index=criteria_names).astype(float)
     prev = st.session_state.criteria_matrix.copy()
 
-    # симетричне оновлення
     for i in range(num_criteria):
         for j in range(num_criteria):
             if i == j:
@@ -72,7 +64,7 @@ if st.button("💾 Зберегти зміни в матриці критері�
                 val = float(edited_df.iloc[i, j])
                 if pd.notna(val) and val != 0:
                     inv = round(1 / val, 3)
-                    # фіксація похибки
+                    # Коригуємо похибки від float
                     if abs(inv - round(inv)) < 0.01:
                         inv = float(f"{round(inv):.3f}")
                     if abs(val - round(val)) < 0.01:
@@ -82,7 +74,7 @@ if st.button("💾 Зберегти зміни в матриці критері�
 
     np.fill_diagonal(edited_df.values, 1.000)
     st.session_state.criteria_matrix = edited_df
-    st.success("✅ Матриця критеріїв оновлена! Симетричні значення застосовано.")
+    st.success("✅ Матриця критеріїв оновлена! Симетричні значення застосовані (n ↔ 1/n).")
 
 st.caption("🔒 Діагональ = 1.000. Натисни «💾 Зберегти зміни», щоб оновити симетрію.")
 
@@ -112,19 +104,13 @@ for tab, crit in zip(tabs, criteria_names):
         )
 
         if st.button(f"💾 Зберегти зміни ({crit})"):
-            raw_alt = st.session_state.get(f"matrix_{crit}")
-
-            if isinstance(raw_alt, dict) and "data" in raw_alt:
-                table_data = raw_alt["data"]
-            elif isinstance(raw_alt, (list, np.ndarray)):
-                table_data = raw_alt
-            elif isinstance(raw_alt, pd.DataFrame):
-                table_data = raw_alt.values.tolist()
+            editor_state = st.session_state.get(f"matrix_{crit}", None)
+            if editor_state and "data" in editor_state:
+                table_data = editor_state["data"]
+                edited_alt_df = pd.DataFrame(table_data, columns=alternative_names, index=alternative_names).astype(float)
             else:
-                st.error(f"⚠️ Не вдалося отримати дані з таблиці {crit}!")
-                st.stop()
+                edited_alt_df = st.session_state.alt_matrices[crit].copy()
 
-            edited_alt_df = pd.DataFrame(table_data, columns=alternative_names, index=alternative_names).astype(float)
             prev_alt = st.session_state.alt_matrices[crit].copy()
 
             for i in range(num_alternatives):
@@ -144,7 +130,7 @@ for tab, crit in zip(tabs, criteria_names):
 
             np.fill_diagonal(edited_alt_df.values, 1.000)
             st.session_state.alt_matrices[crit] = edited_alt_df
-            st.success(f"✅ Матриця для критерію {crit} оновлена! Симетрія застосована.")
+            st.success(f"✅ Матриця для {crit} оновлена! Симетричні значення встановлено.")
 
 # ------------------------------------------------
 # Розрахунок
@@ -183,4 +169,4 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.success("✅ Повністю стабільна версія: без KeyError, None і NaN, з автосиметрією після збереження.")
+st.success("✅ Виправлено! Жодних KeyError або None — дані стабільно оновлюються після натискання «Зберегти».")

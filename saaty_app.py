@@ -50,7 +50,7 @@ criteria_df = st.data_editor(
 save_clicked = st.button("💾 Зберегти зміни в матриці критеріїв")
 
 if save_clicked:
-    # Копіюємо актуальні значення з редактора
+    # Беремо актуальні значення з таблиці
     edited_df = pd.DataFrame(criteria_df, columns=criteria_names, index=criteria_names).astype(float)
     prev = st.session_state.criteria_matrix.copy()
 
@@ -61,12 +61,16 @@ if save_clicked:
             elif edited_df.iloc[i, j] != prev.iloc[i, j]:
                 val = float(edited_df.iloc[i, j])
                 if pd.notna(val) and val != 0:
+                    # 🔹 Контрольоване округлення для уникнення похибок (5.988 → 6.000)
+                    val = round(val, 3)
                     inv = round(1 / val, 3)
-                    # невелике вирівнювання
-                    if abs(inv - round(inv)) < 0.01:
-                        inv = float(f"{round(inv):.3f}")
-                    if abs(val - round(val)) < 0.01:
+
+                    # Якщо значення майже ціле — заокруглюємо до цілого .000
+                    if abs(val - round(val)) < 0.015:
                         val = float(f"{round(val):.3f}")
+                    if abs(inv - round(inv)) < 0.015:
+                        inv = float(f"{round(inv):.3f}")
+
                     edited_df.iloc[i, j] = val
                     edited_df.iloc[j, i] = inv
 
@@ -74,8 +78,8 @@ if save_clicked:
     st.session_state.criteria_matrix = edited_df
     st.success("✅ Матриця критеріїв оновлена! Симетричні значення застосовані.")
 
-    # 🟢 Миттєво перерисовуємо без experimental_rerun
-    st.dataframe(edited_df, use_container_width=True)
+    # Миттєво оновлюємо відображення
+    st.dataframe(edited_df.style.format("{:.3f}"), use_container_width=True)
 
 st.caption("🔒 Діагональ = 1.000. Натисни «💾 Зберегти зміни», щоб оновити симетрію.")
 
@@ -117,18 +121,22 @@ for tab, crit in zip(tabs, criteria_names):
                     elif edited_alt_df.iloc[i, j] != prev_alt.iloc[i, j]:
                         val = float(edited_alt_df.iloc[i, j])
                         if pd.notna(val) and val != 0:
+                            # 🔹 Точне симетричне оновлення
+                            val = round(val, 3)
                             inv = round(1 / val, 3)
-                            if abs(inv - round(inv)) < 0.01:
-                                inv = float(f"{round(inv):.3f}")
-                            if abs(val - round(val)) < 0.01:
+
+                            if abs(val - round(val)) < 0.015:
                                 val = float(f"{round(val):.3f}")
+                            if abs(inv - round(inv)) < 0.015:
+                                inv = float(f"{round(inv):.3f}")
+
                             edited_alt_df.iloc[i, j] = val
                             edited_alt_df.iloc[j, i] = inv
 
             np.fill_diagonal(edited_alt_df.values, 1.000)
             st.session_state.alt_matrices[crit] = edited_alt_df
             st.success(f"✅ Матриця для {crit} оновлена! Симетричні значення застосовано.")
-            st.dataframe(edited_alt_df, use_container_width=True)
+            st.dataframe(edited_alt_df.style.format("{:.3f}"), use_container_width=True)
 
 # ------------------------------------------------
 # Розрахунок глобальних пріоритетів
@@ -167,4 +175,3 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.success("✅ Симетричні значення тепер змінюються одразу після натискання кнопки.")

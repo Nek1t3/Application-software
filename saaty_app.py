@@ -27,25 +27,32 @@ criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
 alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
 
 # ------------------------------------------------
-# 🎯 Ієрархічна діаграма Graphviz
+# 🎯 Ієрархічна діаграма (стрілки вгору)
 # ------------------------------------------------
 st.markdown("## 🎨 Ієрархія задачі (візуалізація)")
 
 dot = graphviz.Digraph()
-dot.attr(rankdir="TB", size="8,6")
+dot.attr(rankdir="BT", size="8,6")  # 🔺 BT — напрямок стрілок знизу вгору
 
 # Головна мета
 dot.node("goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="#a1c9f1")
 
-# Критерії
+# Альтернативи (внизу)
+for alt in alternative_names:
+    dot.node(alt, alt, shape="ellipse", style="filled", color="#fce8a6")
+
+# Критерії (посередині)
 for crit in criteria_names:
     dot.node(crit, crit, shape="box", style="filled", color="#b6fcb6")
-    dot.edge("goal", crit)
 
-    # Альтернативи для кожного критерію
+# Стрілки від альтернатив до критеріїв
+for crit in criteria_names:
     for alt in alternative_names:
-        dot.node(alt, alt, shape="ellipse", style="filled", color="#fce8a6")
-        dot.edge(crit, alt)
+        dot.edge(alt, crit)
+
+# Стрілки від критеріїв до головної мети
+for crit in criteria_names:
+    dot.edge(crit, "goal")
 
 st.graphviz_chart(dot, use_container_width=True)
 
@@ -85,12 +92,10 @@ if save_clicked:
                 if pd.notna(val) and val != 0:
                     val = round(val, 3)
                     inv = round(1 / val, 3)
-
                     if abs(val - round(val)) < 0.015:
                         val = float(f"{round(val):.3f}")
                     if abs(inv - round(inv)) < 0.015:
                         inv = float(f"{round(inv):.3f}")
-
                     edited_df.iloc[i, j] = val
                     edited_df.iloc[j, i] = inv
 
@@ -141,12 +146,10 @@ for tab, crit in zip(tabs, criteria_names):
                         if pd.notna(val) and val != 0:
                             val = round(val, 3)
                             inv = round(1 / val, 3)
-
                             if abs(val - round(val)) < 0.015:
                                 val = float(f"{round(val):.3f}")
                             if abs(inv - round(inv)) < 0.015:
                                 inv = float(f"{round(inv):.3f}")
-
                             edited_alt_df.iloc[i, j] = val
                             edited_alt_df.iloc[j, i] = inv
 
@@ -191,3 +194,4 @@ st.dataframe(
     global_priorities.style.format("{:.3f}").apply(color_rank, axis=1),
     use_container_width=True,
 )
+

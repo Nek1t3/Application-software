@@ -4,13 +4,13 @@ import numpy as np
 import graphviz
 
 # ------------------------------------------------
-# 🔧 Налаштування сторінки
+# Налаштування
 # ------------------------------------------------
 st.set_page_config(page_title="Метод Сааті", layout="wide")
 st.title("Метод Сааті — Ієрархія задачі")
 
 # ------------------------------------------------
-# 🧩 Початкові параметри
+# Початкові параметри
 # ------------------------------------------------
 if "num_criteria" not in st.session_state:
     st.session_state.num_criteria = 3
@@ -27,45 +27,37 @@ criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
 alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
 
 # ------------------------------------------------
-# 🎯 Ієрархічна діаграма (горизонтальна, розтягнута на всю ширину)
+# 🎯 Ієрархічна діаграма (стрілки вгору)
 # ------------------------------------------------
 st.markdown("## 🎨 Ієрархія задачі (візуалізація)")
 
-dot = graphviz.Digraph(format="svg")
-dot.attr(rankdir="LR", ratio="fill", size="30,8", dpi="200")  # ➜ Горизонтально, велика ширина
-dot.attr('node', fixedsize='true', width='2.5', height='1.0', fontsize='16')
+dot = graphviz.Digraph()
+dot.attr(rankdir="BT", size="8,6")  # 🔺 BT — напрямок стрілок знизу вгору
 
-# 🔹 Альтернативи (зліва)
-with dot.subgraph() as s:
-    s.attr(rank='same')
-    for alt in alternative_names:
-        s.node(alt, alt, shape="ellipse", style="filled", color="#fce8a6")
-
-# 🔹 Критерії (посередині)
-with dot.subgraph() as s:
-    s.attr(rank='same')
-    for crit in criteria_names:
-        s.node(crit, crit, shape="box", style="filled", color="#b6fcb6")
-
-# 🔹 Головна мета (справа)
+# Головна мета
 dot.node("goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="#a1c9f1")
 
-# 🔹 Стрілки: від альтернатив до критеріїв
+# Альтернативи (внизу)
 for alt in alternative_names:
-    for crit in criteria_names:
+    dot.node(alt, alt, shape="ellipse", style="filled", color="#fce8a6")
+
+# Критерії (посередині)
+for crit in criteria_names:
+    dot.node(crit, crit, shape="box", style="filled", color="#b6fcb6")
+
+# Стрілки від альтернатив до критеріїв
+for crit in criteria_names:
+    for alt in alternative_names:
         dot.edge(alt, crit)
 
-# 🔹 Стрілки: від критеріїв до головної мети
+# Стрілки від критеріїв до головної мети
 for crit in criteria_names:
     dot.edge(crit, "goal")
 
-# 🔹 Рендер із фіксованою висотою (все видно повністю)
-st.graphviz_chart(dot, use_container_width=True, height=600)
-
-
+st.graphviz_chart(dot, use_container_width=True)
 
 # ------------------------------------------------
-# 📊 Матриця критеріїв
+# Матриця критеріїв
 # ------------------------------------------------
 st.markdown("## 📊 Матриця попарних порівнянь критеріїв")
 
@@ -83,9 +75,11 @@ criteria_df = st.data_editor(
 )
 
 # ------------------------------------------------
-# 💾 Кнопка "Зберегти зміни"
+# Кнопка "Зберегти зміни"
 # ------------------------------------------------
-if st.button("💾 Зберегти зміни в матриці критеріїв"):
+save_clicked = st.button("💾 Зберегти зміни в матриці критеріїв")
+
+if save_clicked:
     edited_df = pd.DataFrame(criteria_df, columns=criteria_names, index=criteria_names).astype(float)
     prev = st.session_state.criteria_matrix.copy()
 
@@ -113,7 +107,7 @@ if st.button("💾 Зберегти зміни в матриці критері�
 st.caption("🔒 Діагональ = 1.000. Натисни «💾 Зберегти зміни», щоб оновити симетрію.")
 
 # ------------------------------------------------
-# 🧩 Матриці альтернатив
+# Матриці альтернатив
 # ------------------------------------------------
 if "alt_matrices" not in st.session_state:
     st.session_state.alt_matrices = {}
@@ -137,7 +131,9 @@ for tab, crit in zip(tabs, criteria_names):
             use_container_width=True,
         )
 
-        if st.button(f"💾 Зберегти зміни ({crit})"):
+        save_alt = st.button(f"💾 Зберегти зміни ({crit})")
+
+        if save_alt:
             edited_alt_df = pd.DataFrame(alt_df, columns=alternative_names, index=alternative_names).astype(float)
             prev_alt = st.session_state.alt_matrices[crit].copy()
 
@@ -163,7 +159,7 @@ for tab, crit in zip(tabs, criteria_names):
             st.dataframe(edited_alt_df.style.format("{:.3f}"), use_container_width=True)
 
 # ------------------------------------------------
-# 📈 Розрахунок глобальних пріоритетів
+# Розрахунок глобальних пріоритетів
 # ------------------------------------------------
 def calc_weights(matrix):
     col_sum = matrix.sum(axis=0)
@@ -199,3 +195,4 @@ st.dataframe(
     use_container_width=True,
 )
 
+st.success("✅ Стрілки тепер спрямовані вгору, ієрархія починається знизу (альтернативи) й веде до головної мети.")

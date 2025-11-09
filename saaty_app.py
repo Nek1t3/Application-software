@@ -27,36 +27,41 @@ criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
 alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
 
 # ------------------------------------------------
-# 🎯 Ієрархічна діаграма (стрілки вгору, фіксована висота)
+# 🎯 Ієрархічна діаграма (стрілки вгору, фіксована висота, вирівнювання)
 # ------------------------------------------------
 st.markdown("## 🎨 Ієрархія задачі (візуалізація)")
 
 dot = graphviz.Digraph(format="svg")
-dot.attr(rankdir="BT", ratio="fill", size="8,30", dpi="200")  # 🔺 Стрілки вгору + стабільна висота
+dot.attr(rankdir="BT", ratio="fill", size="8,30", dpi="200")
 dot.attr('node', fixedsize='true', width='2.5', height='0.9', fontsize='16')
 
-# Головна мета
+# Головна мета (верхній рівень)
 dot.node("goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="#a1c9f1")
 
-# Альтернативи (внизу)
-for alt in alternative_names:
-    dot.node(alt, alt, shape="ellipse", style="filled", color="#fce8a6")
+# Альтернативи (нижній рівень)
+with dot.subgraph() as s:
+    s.attr(rank='same')
+    for alt in alternative_names:
+        s.node(alt, alt, shape="ellipse", style="filled", color="#fce8a6")
 
-# Критерії (посередині)
-for crit in criteria_names:
-    dot.node(crit, crit, shape="box", style="filled", color="#b6fcb6")
+# Критерії (середній рівень)
+with dot.subgraph() as s:
+    s.attr(rank='same')
+    for crit in criteria_names:
+        s.node(crit, crit, shape="box", style="filled", color="#b6fcb6")
 
-# Стрілки від альтернатив до критеріїв
+# Зв’язки: альтернативи → критерії
 for crit in criteria_names:
     for alt in alternative_names:
         dot.edge(alt, crit)
 
-# Стрілки від критеріїв до головної мети
+# Зв’язки: критерії → головна мета
 for crit in criteria_names:
     dot.edge(crit, "goal")
 
-# 📏 Фіксована висота контейнера Streamlit
-st.graphviz_chart(dot, use_container_width=True, height=16)
+# Рендер із фіксованою висотою
+st.graphviz_chart(dot, use_container_width=True, height=900)
+
 
 # ------------------------------------------------
 # 📊 Матриця критеріїв

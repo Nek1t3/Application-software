@@ -137,7 +137,7 @@ if save_clicked:
     st.session_state.criteria_matrix = edited_df
 
 lambda_max, CI, RI, CR = calc_consistency(st.session_state.criteria_matrix)
-st.markdown(f"**λ<sub>max</sub> = {lambda_max:.3f}**, **ІУ = {CI:.3f}**, **ВВУ = {RI:.3f}**, **ВУ = {CR*100:.1f}%**", unsafe_allow_html=True)
+st.markdown(f"**λ<sub>max</sub> = {lambda_max:.3f}**, **ІУ = {CI:.3f}**, **ВУ = {CR*100:.1f}%**", unsafe_allow_html=True)
 if CR > 0.2:
     st.error("❌ ВУ > 20% — матриця неузгоджена, перевірте оцінки!")
 else:

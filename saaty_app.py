@@ -56,7 +56,7 @@ for crit in criteria_names:
     dot.edge(crit, "goal")
 
 # 📏 Фіксована висота контейнера Streamlit
-st.graphviz_chart(dot, use_container_width=True, height=200)
+st.graphviz_chart(dot, use_container_width=True, height=16)
 
 # ------------------------------------------------
 # 📊 Матриця критеріїв

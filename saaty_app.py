@@ -32,7 +32,7 @@ alternative_names = [f"Альтернатива {j+1}" for j in range(num_altern
 st.markdown("## 🎨 Ієрархія задачі (візуалізація)")
 
 dot = graphviz.Digraph()
-dot.attr(rankdir="BT", size="8,6")  # 🔺 BT — напрямок стрілок знизу вгору
+dot.attr(rankdir="BT", size="8,6")  # BT — напрямок стрілок знизу вгору
 
 # Головна мета
 dot.node("goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="#a1c9f1")
@@ -180,19 +180,12 @@ for crit, w in zip(criteria_names, criteria_weights):
 global_priorities["Глоб. пріор."] = global_priorities.sum(axis=1)
 global_priorities = global_priorities.sort_values("Глоб. пріор.", ascending=False)
 
-def color_rank(row):
-    if row.name == global_priorities.index[0]:
-        return ["background-color: #b6fcb6"] * len(row)
-    elif row.name == global_priorities.index[1]:
-        return ["background-color: #fce8a6"] * len(row)
-    elif row.name == global_priorities.index[2]:
-        return ["background-color: #fcb6b6"] * len(row)
-    else:
-        return [""] * len(row)
-
+# ------------------------------------------------
+# Відображення результатів без кольорів
+# ------------------------------------------------
 st.dataframe(
-    global_priorities.style.format("{:.3f}").apply(color_rank, axis=1),
+    global_priorities.style.format("{:.3f}"),
     use_container_width=True,
 )
 
-st.success("✅ Стрілки тепер спрямовані вгору, ієрархія починається знизу (альтернативи) й веде до головної мети.")
+st.success("✅ Розрахунок завершено! Таблиця без кольорового підсвічування.")

@@ -27,40 +27,41 @@ criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
 alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
 
 # ------------------------------------------------
-# 🎯 Ієрархічна діаграма (стрілки вгору, фіксована висота, вирівнювання)
+# 🎯 Ієрархічна діаграма (горизонтальна, розтягнута на всю ширину)
 # ------------------------------------------------
 st.markdown("## 🎨 Ієрархія задачі (візуалізація)")
 
 dot = graphviz.Digraph(format="svg")
-dot.attr(rankdir="BT", ratio="fill", size="8,30", dpi="200")
-dot.attr('node', fixedsize='true', width='2.5', height='0.9', fontsize='16')
+dot.attr(rankdir="LR", ratio="fill", size="30,8", dpi="200")  # ➜ Горизонтально, велика ширина
+dot.attr('node', fixedsize='true', width='2.5', height='1.0', fontsize='16')
 
-# Головна мета (верхній рівень)
-dot.node("goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="#a1c9f1")
-
-# Альтернативи (нижній рівень)
+# 🔹 Альтернативи (зліва)
 with dot.subgraph() as s:
     s.attr(rank='same')
     for alt in alternative_names:
         s.node(alt, alt, shape="ellipse", style="filled", color="#fce8a6")
 
-# Критерії (середній рівень)
+# 🔹 Критерії (посередині)
 with dot.subgraph() as s:
     s.attr(rank='same')
     for crit in criteria_names:
         s.node(crit, crit, shape="box", style="filled", color="#b6fcb6")
 
-# Зв’язки: альтернативи → критерії
-for crit in criteria_names:
-    for alt in alternative_names:
+# 🔹 Головна мета (справа)
+dot.node("goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="#a1c9f1")
+
+# 🔹 Стрілки: від альтернатив до критеріїв
+for alt in alternative_names:
+    for crit in criteria_names:
         dot.edge(alt, crit)
 
-# Зв’язки: критерії → головна мета
+# 🔹 Стрілки: від критеріїв до головної мети
 for crit in criteria_names:
     dot.edge(crit, "goal")
 
-# Рендер із фіксованою висотою
-st.graphviz_chart(dot, use_container_width=True, height=900)
+# 🔹 Рендер із фіксованою висотою (все видно повністю)
+st.graphviz_chart(dot, use_container_width=True, height=600)
+
 
 
 # ------------------------------------------------

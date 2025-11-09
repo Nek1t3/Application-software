@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import graphviz
 
 # ------------------------------------------------
 # Налаштування
@@ -26,6 +27,29 @@ criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
 alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
 
 # ------------------------------------------------
+# 🎯 Ієрархічна діаграма Graphviz
+# ------------------------------------------------
+st.markdown("## 🎨 Ієрархія задачі (візуалізація)")
+
+dot = graphviz.Digraph()
+dot.attr(rankdir="TB", size="8,6")
+
+# Головна мета
+dot.node("goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="#a1c9f1")
+
+# Критерії
+for crit in criteria_names:
+    dot.node(crit, crit, shape="box", style="filled", color="#b6fcb6")
+    dot.edge("goal", crit)
+
+    # Альтернативи для кожного критерію
+    for alt in alternative_names:
+        dot.node(alt, alt, shape="ellipse", style="filled", color="#fce8a6")
+        dot.edge(crit, alt)
+
+st.graphviz_chart(dot, use_container_width=True)
+
+# ------------------------------------------------
 # Матриця критеріїв
 # ------------------------------------------------
 st.markdown("## 📊 Матриця попарних порівнянь критеріїв")
@@ -37,7 +61,6 @@ if "criteria_matrix" not in st.session_state or len(st.session_state.criteria_ma
         index=criteria_names
     )
 
-# Редактор таблиці
 criteria_df = st.data_editor(
     st.session_state.criteria_matrix,
     key="criteria_editor",
@@ -50,7 +73,6 @@ criteria_df = st.data_editor(
 save_clicked = st.button("💾 Зберегти зміни в матриці критеріїв")
 
 if save_clicked:
-    # Беремо актуальні значення з таблиці
     edited_df = pd.DataFrame(criteria_df, columns=criteria_names, index=criteria_names).astype(float)
     prev = st.session_state.criteria_matrix.copy()
 
@@ -61,11 +83,9 @@ if save_clicked:
             elif edited_df.iloc[i, j] != prev.iloc[i, j]:
                 val = float(edited_df.iloc[i, j])
                 if pd.notna(val) and val != 0:
-                    # 🔹 Контрольоване округлення для уникнення похибок (5.988 → 6.000)
                     val = round(val, 3)
                     inv = round(1 / val, 3)
 
-                    # Якщо значення майже ціле — заокруглюємо до цілого .000
                     if abs(val - round(val)) < 0.015:
                         val = float(f"{round(val):.3f}")
                     if abs(inv - round(inv)) < 0.015:
@@ -77,8 +97,6 @@ if save_clicked:
     np.fill_diagonal(edited_df.values, 1.000)
     st.session_state.criteria_matrix = edited_df
     st.success("✅ Матриця критеріїв оновлена! Симетричні значення застосовані.")
-
-    # Миттєво оновлюємо відображення
     st.dataframe(edited_df.style.format("{:.3f}"), use_container_width=True)
 
 st.caption("🔒 Діагональ = 1.000. Натисни «💾 Зберегти зміни», щоб оновити симетрію.")
@@ -121,7 +139,6 @@ for tab, crit in zip(tabs, criteria_names):
                     elif edited_alt_df.iloc[i, j] != prev_alt.iloc[i, j]:
                         val = float(edited_alt_df.iloc[i, j])
                         if pd.notna(val) and val != 0:
-                            # 🔹 Точне симетричне оновлення
                             val = round(val, 3)
                             inv = round(1 / val, 3)
 
@@ -174,4 +191,3 @@ st.dataframe(
     global_priorities.style.format("{:.3f}").apply(color_rank, axis=1),
     use_container_width=True,
 )
-

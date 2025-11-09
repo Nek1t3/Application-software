@@ -33,54 +33,71 @@ if num_alternatives != st.session_state.num_alternatives:
 
 
 # ------------------------------------------------
-# 💾 Збереження та завантаження матриць
+# 💾 Бокова вкладка — Збереження / Імпорт
 # ------------------------------------------------
 import json
 from io import BytesIO
 
-st.markdown("### 💾 Керування матрицями")
+st.sidebar.header("💾 Збереження / Імпорт")
 
-# --- Експорт ---
-if st.button("📤 Експортувати матриці в JSON"):
-    export_data = {
-        "num_criteria": st.session_state.num_criteria,
-        "num_alternatives": st.session_state.num_alternatives,
-        "criteria_matrix": st.session_state.get("criteria_matrix", pd.DataFrame()).to_dict(),
-        "alt_matrices": {k: v.to_dict() for k, v in st.session_state.get("alt_matrices", {}).items()}
-    }
+mode = st.sidebar.radio("Оберіть режим:", ["Зберегти матриці", "Імпортувати матриці"])
 
-    json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
-    b = BytesIO(json_str.encode("utf-8"))
+if mode == "Зберегти матриці":
+    st.sidebar.markdown("#### 📤 Експортувати поточні матриці")
 
-    st.download_button(
-        label="⬇️ Завантажити матриці (JSON)",
-        data=b,
-        file_name="saaty_matrices.json",
-        mime="application/json"
-    )
+    # Поле для введення імені файлу
+    filename = st.sidebar.text_input("Ім'я файлу (без .json):", "ahp_matrices")
 
-# --- Імпорт ---
-uploaded_file = st.file_uploader("📥 Імпортувати матриці (JSON)", type=["json"])
-
-if uploaded_file:
-    try:
-        imported = json.load(uploaded_file)
-        st.session_state.num_criteria = imported["num_criteria"]
-        st.session_state.num_alternatives = imported["num_alternatives"]
-
-        # Відновлення головної матриці
-        st.session_state.criteria_matrix = pd.DataFrame(imported["criteria_matrix"])
-
-        # Відновлення альтернативних
-        st.session_state.alt_matrices = {
-            k: pd.DataFrame(v) for k, v in imported.get("alt_matrices", {}).items()
+    if st.sidebar.button("💾 Зберегти як JSON"):
+        export_data = {
+            "num_criteria": st.session_state.num_criteria,
+            "num_alternatives": st.session_state.num_alternatives,
+            "criteria_matrix": st.session_state.get("criteria_matrix", pd.DataFrame()).to_dict(),
+            "alt_matrices": {k: v.to_dict() for k, v in st.session_state.get("alt_matrices", {}).items()}
         }
 
-        st.success("✅ Матриці успішно імпортовано! Всі дані відновлені.")
-        st.rerun()
+        json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
+        b = BytesIO(json_str.encode("utf-8"))
 
-    except Exception as e:
-        st.error(f"❌ Помилка при імпорті: {e}")
+        st.sidebar.download_button(
+            label="⬇️ Завантажити JSON-файл",
+            data=b,
+            file_name=f"{filename}.json",
+            mime="application/json",
+        )
+        st.sidebar.success(f"✅ Файл {filename}.json готовий до завантаження.")
+
+elif mode == "Імпортувати матриці":
+    st.sidebar.markdown("#### 📥 Завантажити готові матриці")
+
+    uploaded_file = st.sidebar.file_uploader("Оберіть JSON-файл", type=["json"])
+
+    if uploaded_file:
+        try:
+            imported = json.load(uploaded_file)
+
+            # Попередній перегляд перед застосуванням
+            st.sidebar.success("✅ Файл успішно прочитано!")
+            st.sidebar.write(f"Критерії: {imported['num_criteria']}, Альтернативи: {imported['num_alternatives']}")
+            st.sidebar.dataframe(pd.DataFrame(imported["criteria_matrix"]))
+
+            if st.sidebar.button("📂 Імпортувати в застосунок"):
+                st.session_state.num_criteria = imported["num_criteria"]
+                st.session_state.num_alternatives = imported["num_alternatives"]
+
+                # Відновлення головної матриці
+                st.session_state.criteria_matrix = pd.DataFrame(imported["criteria_matrix"])
+
+                # Відновлення альтернативних
+                st.session_state.alt_matrices = {
+                    k: pd.DataFrame(v) for k, v in imported.get("alt_matrices", {}).items()
+                }
+
+                st.sidebar.success("✅ Матриці імпортовано! Оновлення застосунку...")
+                st.rerun()
+
+        except Exception as e:
+            st.sidebar.error(f"❌ Помилка при імпорті: {e}")
 
 
 # ------------------------------------------------

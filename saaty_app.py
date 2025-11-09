@@ -17,14 +17,18 @@ if "num_criteria" not in st.session_state:
 if "num_alternatives" not in st.session_state:
     st.session_state.num_alternatives = 3
 
-num_criteria = st.number_input("Кількість критеріїв:", 1, 9, st.session_state.num_criteria)
-num_alternatives = st.number_input("Кількість альтернатив:", 1, 9, st.session_state.num_alternatives)
+# Поля введення
+num_criteria = st.number_input("Кількість критеріїв:", 1, 9, value=st.session_state.num_criteria)
+num_alternatives = st.number_input("Кількість альтернатив:", 1, 9, value=st.session_state.num_alternatives)
 
-st.session_state.num_criteria = num_criteria
-st.session_state.num_alternatives = num_alternatives
+# Оновлення стану — тільки якщо значення реально змінилося
+if num_criteria != st.session_state.num_criteria:
+    st.session_state.num_criteria = num_criteria
+    st.experimental_rerun()  # миттєво перезавантажує сторінку з новими параметрами
 
-criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
-alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
+if num_alternatives != st.session_state.num_alternatives:
+    st.session_state.num_alternatives = num_alternatives
+    st.experimental_rerun()
 
 # ------------------------------------------------
 # 🎯 Ієрархічна діаграма (стрілки вгору)

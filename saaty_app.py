@@ -32,7 +32,7 @@ alternative_names = [f"Альтернатива {j+1}" for j in range(num_altern
 st.markdown("## 🎨 Ієрархія задачі (візуалізація)")
 
 dot = graphviz.Digraph()
-dot.attr(rankdir="BT", size="8,6")  # 🔺 BT — напрямок стрілок знизу вгору
+dot.attr(rankdir="BT", size="8,12")  # 🔺 BT — напрямок стрілок знизу вгору
 
 # Головна мета
 dot.node("goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="#a1c9f1")

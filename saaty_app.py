@@ -37,7 +37,7 @@ alternative_names = st.session_state.get("alternative_names", [f"Альтерн�
 goal_name = st.session_state.get("goal_name", "ГОЛОВНА МЕТА")
 
 # ------------------------------------------------
-# 💾 Бокова вкладка
+# 💾 Бокова вкладка — Збереження / Імпорт
 # ------------------------------------------------
 st.sidebar.header("💾 Збереження / Імпорт")
 mode = st.sidebar.radio("Оберіть режим:", ["Зберегти матриці", "Імпортувати матриці"])
@@ -61,6 +61,7 @@ if mode == "Зберегти матриці":
             file_name=f"{filename}.json",
             mime="application/json",
         )
+
 elif mode == "Імпортувати матриці":
     uploaded_file = st.sidebar.file_uploader("📥 Завантажити JSON", type=["json"])
     if uploaded_file:
@@ -104,8 +105,9 @@ if (
     or len(st.session_state.criteria_matrix) != num_criteria
     or list(st.session_state.criteria_matrix.columns) != criteria_names
 ):
-    st.session_state.criteria_matrix = pd.DataFrame(np.ones((num_criteria, num_criteria)),
-                                                    columns=criteria_names, index=criteria_names)
+    st.session_state.criteria_matrix = pd.DataFrame(
+        np.ones((num_criteria, num_criteria)), columns=criteria_names, index=criteria_names
+    )
 else:
     st.session_state.criteria_matrix.columns = criteria_names
     st.session_state.criteria_matrix.index = criteria_names
@@ -113,7 +115,7 @@ else:
 criteria_df = st.data_editor(st.session_state.criteria_matrix, key="criteria_editor", use_container_width=True)
 
 # ------------------------------------------------
-# 🧮 Розрахунок узгодженості
+# 🧮 Функції узгодженості
 # ------------------------------------------------
 RI_table = {1: 0, 2: 0, 3: 0.58, 4: 0.9, 5: 1.12, 6: 1.24,
              7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49}
@@ -129,15 +131,35 @@ def calc_consistency(matrix):
     return lambda_max, CI, RI, CR
 
 
+def enforce_symmetry(df):
+    """Забезпечує симетричність A[i][j] = 1 / A[j][i]"""
+    edited = df.copy()
+    n = len(df)
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                edited.iloc[i, j] = 1.0
+            elif edited.iloc[i, j] != 0:
+                edited.iloc[j, i] = round(1 / edited.iloc[i, j], 3)
+    np.fill_diagonal(edited.values, 1.0)
+    return edited
+
+# ------------------------------------------------
+# 💾 Збереження змін і перевірка ВУ
+# ------------------------------------------------
 save_clicked = st.button("💾 Зберегти зміни в матриці критеріїв")
 
 if save_clicked:
     edited_df = pd.DataFrame(criteria_df, columns=criteria_names, index=criteria_names).astype(float)
-    np.fill_diagonal(edited_df.values, 1.0)
+    edited_df = enforce_symmetry(edited_df)
     st.session_state.criteria_matrix = edited_df
+    st.success("✅ Матриця оновлена! Симетричність забезпечено.")
 
 lambda_max, CI, RI, CR = calc_consistency(st.session_state.criteria_matrix)
-st.markdown(f"**λ<sub>max</sub> = {lambda_max:.3f}**, **ІУ = {CI:.3f}**, **ВУ = {CR*100:.1f}%**", unsafe_allow_html=True)
+st.markdown(
+    f"**λ<sub>max</sub> = {lambda_max:.3f}**, **ІУ = {CI:.3f}**, **ВВУ = {RI:.3f}**, **ВУ = {CR*100:.1f}%**",
+    unsafe_allow_html=True,
+)
 if CR > 0.2:
     st.error("❌ ВУ > 20% — матриця неузгоджена, перевірте оцінки!")
 else:
@@ -159,8 +181,10 @@ for tab, crit in zip(tabs, criteria_names):
             or len(st.session_state.alt_matrices[crit]) != num_alternatives
             or list(st.session_state.alt_matrices[crit].columns) != alternative_names
         ):
-            st.session_state.alt_matrices[crit] = pd.DataFrame(np.ones((num_alternatives, num_alternatives)),
-                                                               columns=alternative_names, index=alternative_names)
+            st.session_state.alt_matrices[crit] = pd.DataFrame(
+                np.ones((num_alternatives, num_alternatives)),
+                columns=alternative_names, index=alternative_names
+            )
         else:
             st.session_state.alt_matrices[crit].columns = alternative_names
             st.session_state.alt_matrices[crit].index = alternative_names
@@ -170,11 +194,15 @@ for tab, crit in zip(tabs, criteria_names):
         save_alt = st.button(f"💾 Зберегти зміни ({crit})")
         if save_alt:
             edited_alt_df = pd.DataFrame(alt_df, columns=alternative_names, index=alternative_names).astype(float)
-            np.fill_diagonal(edited_alt_df.values, 1.0)
+            edited_alt_df = enforce_symmetry(edited_alt_df)
             st.session_state.alt_matrices[crit] = edited_alt_df
+            st.success(f"✅ Матриця для {crit} оновлена! Симетричність забезпечено.")
 
         lam, ci, ri, cr = calc_consistency(st.session_state.alt_matrices[crit])
-        st.markdown(f"**λ<sub>max</sub> = {lam:.3f}**, **ІУ = {ci:.3f}**, **ВВУ = {ri:.3f}**, **ВУ = {cr*100:.1f}%**", unsafe_allow_html=True)
+        st.markdown(
+            f"**λ<sub>max</sub> = {lam:.3f}**, **ІУ = {ci:.3f}**, **ВВУ = {ri:.3f}**, **ВУ = {cr*100:.1f}%**",
+            unsafe_allow_html=True,
+        )
         if cr > 0.2:
             st.error("❌ ВУ > 20% — матриця неузгоджена, змініть оцінки!")
         else:

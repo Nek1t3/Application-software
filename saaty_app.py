@@ -78,8 +78,6 @@ elif mode == "Імпортувати матриці":
 
             # Попередній перегляд перед застосуванням
             st.sidebar.success("✅ Файл успішно прочитано!")
-            st.sidebar.write(f"Критерії: {imported['num_criteria']}, Альтернативи: {imported['num_alternatives']}")
-            st.sidebar.dataframe(pd.DataFrame(imported["criteria_matrix"]))
 
             if st.sidebar.button("📂 Імпортувати в застосунок"):
                 st.session_state.num_criteria = imported["num_criteria"]

@@ -32,6 +32,56 @@ if num_alternatives != st.session_state.num_alternatives:
     st.rerun()
 
 
+# ------------------------------------------------
+# 💾 Збереження та завантаження матриць
+# ------------------------------------------------
+import json
+from io import BytesIO
+
+st.markdown("### 💾 Керування матрицями")
+
+# --- Експорт ---
+if st.button("📤 Експортувати матриці в JSON"):
+    export_data = {
+        "num_criteria": st.session_state.num_criteria,
+        "num_alternatives": st.session_state.num_alternatives,
+        "criteria_matrix": st.session_state.get("criteria_matrix", pd.DataFrame()).to_dict(),
+        "alt_matrices": {k: v.to_dict() for k, v in st.session_state.get("alt_matrices", {}).items()}
+    }
+
+    json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
+    b = BytesIO(json_str.encode("utf-8"))
+
+    st.download_button(
+        label="⬇️ Завантажити матриці (JSON)",
+        data=b,
+        file_name="saaty_matrices.json",
+        mime="application/json"
+    )
+
+# --- Імпорт ---
+uploaded_file = st.file_uploader("📥 Імпортувати матриці (JSON)", type=["json"])
+
+if uploaded_file:
+    try:
+        imported = json.load(uploaded_file)
+        st.session_state.num_criteria = imported["num_criteria"]
+        st.session_state.num_alternatives = imported["num_alternatives"]
+
+        # Відновлення головної матриці
+        st.session_state.criteria_matrix = pd.DataFrame(imported["criteria_matrix"])
+
+        # Відновлення альтернативних
+        st.session_state.alt_matrices = {
+            k: pd.DataFrame(v) for k, v in imported.get("alt_matrices", {}).items()
+        }
+
+        st.success("✅ Матриці успішно імпортовано! Всі дані відновлені.")
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"❌ Помилка при імпорті: {e}")
+
 
 # ------------------------------------------------
 # 🎯 Ієрархічна діаграма (стрілки вгору)

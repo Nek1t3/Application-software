@@ -19,14 +19,9 @@ if "num_criteria" not in st.session_state:
 if "num_alternatives" not in st.session_state:
     st.session_state.num_alternatives = 3
 
-num_criteria = st.number_input(
-    "Кількість критеріїв:", 1, 9, value=st.session_state.num_criteria
-)
-num_alternatives = st.number_input(
-    "Кількість альтернатив:", 1, 9, value=st.session_state.num_alternatives
-)
+num_criteria = st.number_input("Кількість критеріїв:", 1, 9, value=st.session_state.num_criteria)
+num_alternatives = st.number_input("Кількість альтернатив:", 1, 9, value=st.session_state.num_alternatives)
 
-# ✅ Підтримка оновлення при зміні кількості
 if num_criteria != st.session_state.num_criteria:
     st.session_state.num_criteria = int(num_criteria)
     st.rerun()
@@ -35,32 +30,20 @@ if num_alternatives != st.session_state.num_alternatives:
     st.rerun()
 
 # ------------------------------------------------
-# 🏷️ Отримання назв з session_state
+# 🏷️ Отримання назв
 # ------------------------------------------------
-criteria_names = st.session_state.get(
-    "criteria_names", [f"Критерій {i+1}" for i in range(int(num_criteria))]
-)
-alternative_names = st.session_state.get(
-    "alternative_names", [f"Альтернатива {j+1}" for j in range(int(num_alternatives))]
-)
+criteria_names = st.session_state.get("criteria_names", [f"Критерій {i+1}" for i in range(int(num_criteria))])
+alternative_names = st.session_state.get("alternative_names", [f"Альтернатива {j+1}" for j in range(int(num_alternatives))])
 goal_name = st.session_state.get("goal_name", "ГОЛОВНА МЕТА")
 
-# Перевіряємо відповідність кількості назв
-if len(criteria_names) != num_criteria:
-    criteria_names = [f"Критерій {i+1}" for i in range(int(num_criteria))]
-if len(alternative_names) != num_alternatives:
-    alternative_names = [f"Альтернатива {j+1}" for j in range(int(num_alternatives))]
-
 # ------------------------------------------------
-# 💾 Вкладка збереження / імпорту
+# 💾 Бокова вкладка
 # ------------------------------------------------
 st.sidebar.header("💾 Збереження / Імпорт")
 mode = st.sidebar.radio("Оберіть режим:", ["Зберегти матриці", "Імпортувати матриці"])
 
 if mode == "Зберегти матриці":
-    st.sidebar.markdown("#### 📤 Експортувати поточні матриці")
     filename = st.sidebar.text_input("Ім'я файлу (без .json):", "ahp_matrices")
-
     if st.sidebar.button("💾 Зберегти як JSON"):
         export_data = {
             "goal_name": goal_name,
@@ -71,42 +54,26 @@ if mode == "Зберегти матриці":
             "criteria_matrix": st.session_state.get("criteria_matrix", pd.DataFrame()).to_dict(),
             "alt_matrices": {k: v.to_dict() for k, v in st.session_state.get("alt_matrices", {}).items()},
         }
-
         json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
-        b = BytesIO(json_str.encode("utf-8"))
-
         st.sidebar.download_button(
             label="⬇️ Завантажити JSON-файл",
-            data=b,
+            data=BytesIO(json_str.encode("utf-8")),
             file_name=f"{filename}.json",
             mime="application/json",
         )
-        st.sidebar.success(f"✅ Файл {filename}.json готовий до завантаження.")
-
 elif mode == "Імпортувати матриці":
-    st.sidebar.markdown("#### 📥 Завантажити готові матриці")
-    uploaded_file = st.sidebar.file_uploader("Оберіть JSON-файл", type=["json"])
-
+    uploaded_file = st.sidebar.file_uploader("📥 Завантажити JSON", type=["json"])
     if uploaded_file:
-        try:
-            imported = json.load(uploaded_file)
-            st.sidebar.success("✅ Файл успішно прочитано!")
-
-            if st.sidebar.button("📂 Імпортувати в застосунок"):
-                st.session_state.goal_name = imported.get("goal_name", "ГОЛОВНА МЕТА")
-                st.session_state.criteria_names = imported.get("criteria_names", [])
-                st.session_state.alternative_names = imported.get("alternative_names", [])
-                st.session_state.num_criteria = imported["num_criteria"]
-                st.session_state.num_alternatives = imported["num_alternatives"]
-                st.session_state.criteria_matrix = pd.DataFrame(imported["criteria_matrix"])
-                st.session_state.alt_matrices = {
-                    k: pd.DataFrame(v) for k, v in imported.get("alt_matrices", {}).items()
-                }
-                st.sidebar.success("✅ Матриці імпортовано! Оновлення застосунку...")
-                st.rerun()
-
-        except Exception as e:
-            st.sidebar.error(f"❌ Помилка при імпорті: {e}")
+        imported = json.load(uploaded_file)
+        st.session_state.goal_name = imported.get("goal_name", "ГОЛОВНА МЕТА")
+        st.session_state.criteria_names = imported.get("criteria_names", [])
+        st.session_state.alternative_names = imported.get("alternative_names", [])
+        st.session_state.num_criteria = imported["num_criteria"]
+        st.session_state.num_alternatives = imported["num_alternatives"]
+        st.session_state.criteria_matrix = pd.DataFrame(imported["criteria_matrix"])
+        st.session_state.alt_matrices = {k: pd.DataFrame(v) for k, v in imported.get("alt_matrices", {}).items()}
+        st.sidebar.success("✅ Імпортовано, оновлення...")
+        st.rerun()
 
 # ------------------------------------------------
 # 🎨 Ієрархічна діаграма
@@ -114,21 +81,13 @@ elif mode == "Імпортувати матриці":
 st.markdown("## 🎯 Ієрархія задачі (візуалізація)")
 
 dot = graphviz.Digraph()
-dot.attr(rankdir="BT", size="8,6")  # BT = стрілки знизу вгору
+dot.attr(rankdir="BT", size="8,6")
 
-# Головна мета
 dot.node("goal", goal_name, shape="box", style="filled", color="#a1c9f1")
-
-# Альтернативи (внизу)
 for alt in alternative_names:
     dot.node(alt, alt, shape="ellipse", style="filled", color="#fce8a6")
-
-# Критерії (посередині)
 for crit in criteria_names:
     dot.node(crit, crit, shape="box", style="filled", color="#b6fcb6")
-
-# Стрілки
-for crit in criteria_names:
     for alt in alternative_names:
         dot.edge(alt, crit)
     dot.edge(crit, "goal")
@@ -136,7 +95,7 @@ for crit in criteria_names:
 st.graphviz_chart(dot, use_container_width=True)
 
 # ------------------------------------------------
-# 📊 Матриця попарних порівнянь критеріїв
+# 📊 Матриця критеріїв
 # ------------------------------------------------
 st.markdown("## 📊 Матриця попарних порівнянь критеріїв")
 
@@ -144,57 +103,45 @@ if (
     "criteria_matrix" not in st.session_state
     or len(st.session_state.criteria_matrix) != num_criteria
     or list(st.session_state.criteria_matrix.columns) != criteria_names
-    or list(st.session_state.criteria_matrix.index) != criteria_names
 ):
-    st.session_state.criteria_matrix = pd.DataFrame(
-        np.ones((num_criteria, num_criteria)),
-        columns=criteria_names,
-        index=criteria_names,
-    )
+    st.session_state.criteria_matrix = pd.DataFrame(np.ones((num_criteria, num_criteria)),
+                                                    columns=criteria_names, index=criteria_names)
 else:
-    # Оновлюємо назви без втрати значень
     st.session_state.criteria_matrix.columns = criteria_names
     st.session_state.criteria_matrix.index = criteria_names
 
-criteria_df = st.data_editor(
-    st.session_state.criteria_matrix,
-    key="criteria_editor",
-    use_container_width=True,
-)
+criteria_df = st.data_editor(st.session_state.criteria_matrix, key="criteria_editor", use_container_width=True)
 
 # ------------------------------------------------
-# 💾 Збереження змін у матриці критеріїв
+# 🧮 Розрахунок узгодженості
 # ------------------------------------------------
+RI_table = {1: 0, 2: 0, 3: 0.58, 4: 0.9, 5: 1.12, 6: 1.24,
+             7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49}
+
+
+def calc_consistency(matrix):
+    n = len(matrix)
+    eigvals, _ = np.linalg.eig(matrix)
+    lambda_max = np.max(np.real(eigvals))
+    CI = (lambda_max - n) / (n - 1)
+    RI = RI_table.get(n, 1.49)
+    CR = CI / RI if RI != 0 else 0
+    return lambda_max, CI, RI, CR
+
+
 save_clicked = st.button("💾 Зберегти зміни в матриці критеріїв")
 
 if save_clicked:
     edited_df = pd.DataFrame(criteria_df, columns=criteria_names, index=criteria_names).astype(float)
-    prev = st.session_state.criteria_matrix.copy()
-
-    for i in range(num_criteria):
-        for j in range(num_criteria):
-            if i == j:
-                edited_df.iloc[i, j] = 1.000
-            elif edited_df.iloc[i, j] != prev.iloc[i, j]:
-                val = float(edited_df.iloc[i, j])
-                if pd.notna(val) and val != 0:
-                    val = round(val, 3)
-                    inv = round(1 / val, 3)
-                    edited_df.iloc[i, j] = val
-                    edited_df.iloc[j, i] = inv
-
-    np.fill_diagonal(edited_df.values, 1.000)
+    np.fill_diagonal(edited_df.values, 1.0)
     st.session_state.criteria_matrix = edited_df
 
-    col_sum = edited_df.sum(axis=0)
-    norm_matrix = edited_df / col_sum
-    weights = norm_matrix.mean(axis=1).round(3)
-
-    result_df = edited_df.copy()
-    result_df["Вектор пріоритетів"] = weights
-
-    st.success("✅ Матриця критеріїв оновлена!")
-    st.dataframe(result_df.style.format("{:.3f}"), use_container_width=True)
+lambda_max, CI, RI, CR = calc_consistency(st.session_state.criteria_matrix)
+st.markdown(f"**λ<sub>max</sub> = {lambda_max:.3f}**, **ІУ = {CI:.3f}**, **ВВУ = {RI:.3f}**, **ВУ = {CR*100:.1f}%**", unsafe_allow_html=True)
+if CR > 0.2:
+    st.error("❌ ВУ > 20% — матриця неузгоджена, перевірте оцінки!")
+else:
+    st.success("✅ ВУ < 20% — узгодженість прийнятна.")
 
 # ------------------------------------------------
 # ⚙️ Матриці альтернатив
@@ -211,54 +158,36 @@ for tab, crit in zip(tabs, criteria_names):
             crit not in st.session_state.alt_matrices
             or len(st.session_state.alt_matrices[crit]) != num_alternatives
             or list(st.session_state.alt_matrices[crit].columns) != alternative_names
-            or list(st.session_state.alt_matrices[crit].index) != alternative_names
         ):
-            st.session_state.alt_matrices[crit] = pd.DataFrame(
-                np.ones((num_alternatives, num_alternatives)),
-                columns=alternative_names,
-                index=alternative_names,
-            )
+            st.session_state.alt_matrices[crit] = pd.DataFrame(np.ones((num_alternatives, num_alternatives)),
+                                                               columns=alternative_names, index=alternative_names)
         else:
             st.session_state.alt_matrices[crit].columns = alternative_names
             st.session_state.alt_matrices[crit].index = alternative_names
 
-        alt_df = st.data_editor(
-            st.session_state.alt_matrices[crit],
-            key=f"matrix_{crit}",
-            use_container_width=True,
-        )
+        alt_df = st.data_editor(st.session_state.alt_matrices[crit], key=f"matrix_{crit}", use_container_width=True)
 
         save_alt = st.button(f"💾 Зберегти зміни ({crit})")
-
         if save_alt:
             edited_alt_df = pd.DataFrame(alt_df, columns=alternative_names, index=alternative_names).astype(float)
-            prev_alt = st.session_state.alt_matrices[crit].copy()
-
-            for i in range(num_alternatives):
-                for j in range(num_alternatives):
-                    if i == j:
-                        edited_alt_df.iloc[i, j] = 1.000
-                    elif edited_alt_df.iloc[i, j] != prev_alt.iloc[i, j]:
-                        val = float(edited_alt_df.iloc[i, j])
-                        if pd.notna(val) and val != 0:
-                            val = round(val, 3)
-                            inv = round(1 / val, 3)
-                            edited_alt_df.iloc[i, j] = val
-                            edited_alt_df.iloc[j, i] = inv
-
-            np.fill_diagonal(edited_alt_df.values, 1.000)
+            np.fill_diagonal(edited_alt_df.values, 1.0)
             st.session_state.alt_matrices[crit] = edited_alt_df
-            st.success(f"✅ Матриця для {crit} оновлена!")
-            st.dataframe(edited_alt_df.style.format("{:.3f}"), use_container_width=True)
+
+        lam, ci, ri, cr = calc_consistency(st.session_state.alt_matrices[crit])
+        st.markdown(f"**λ<sub>max</sub> = {lam:.3f}**, **ІУ = {ci:.3f}**, **ВВУ = {ri:.3f}**, **ВУ = {cr*100:.1f}%**", unsafe_allow_html=True)
+        if cr > 0.2:
+            st.error("❌ ВУ > 20% — матриця неузгоджена, змініть оцінки!")
+        else:
+            st.success("✅ ВУ < 20% — узгодженість прийнятна.")
 
 # ------------------------------------------------
-# 🧮 Розрахунок глобальних пріоритетів
+# 🧮 Глобальні пріоритети
 # ------------------------------------------------
 def calc_weights(matrix):
     col_sum = matrix.sum(axis=0)
     norm = matrix / col_sum
-    weights = norm.mean(axis=1)
-    return weights
+    return norm.mean(axis=1)
+
 
 st.markdown("---")
 st.markdown("## 🧮 Розрахунок глобальних пріоритетів")
@@ -274,4 +203,4 @@ global_priorities["Глоб. пріор."] = global_priorities.sum(axis=1)
 global_priorities = global_priorities.sort_values("Глоб. пріор.", ascending=False)
 
 st.dataframe(global_priorities.style.format("{:.3f}"), use_container_width=True)
-st.success("✅ Розрахунок завершено! Назви синхронізовані з редагованими.")
+st.success("✅ Розрахунок завершено.")

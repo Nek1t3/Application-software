@@ -4,13 +4,13 @@ import numpy as np
 import graphviz
 
 # ------------------------------------------------
-# Налаштування
+# 🔧 Налаштування сторінки
 # ------------------------------------------------
 st.set_page_config(page_title="Метод Сааті", layout="wide")
 st.title("Метод Сааті — Ієрархія задачі")
 
 # ------------------------------------------------
-# Початкові параметри
+# 🧩 Початкові параметри
 # ------------------------------------------------
 if "num_criteria" not in st.session_state:
     st.session_state.num_criteria = 3
@@ -27,12 +27,13 @@ criteria_names = [f"Критерій {i+1}" for i in range(num_criteria)]
 alternative_names = [f"Альтернатива {j+1}" for j in range(num_alternatives)]
 
 # ------------------------------------------------
-# 🎯 Ієрархічна діаграма (стрілки вгору)
+# 🎯 Ієрархічна діаграма (стрілки вгору, фіксована висота)
 # ------------------------------------------------
 st.markdown("## 🎨 Ієрархія задачі (візуалізація)")
 
-dot = graphviz.Digraph()
-dot.attr(rankdir="BT", size="8,30")  # 🔺 BT — напрямок стрілок знизу вгору
+dot = graphviz.Digraph(format="svg")
+dot.attr(rankdir="BT", ratio="fill", size="8,30", dpi="200")  # 🔺 Стрілки вгору + стабільна висота
+dot.attr('node', fixedsize='true', width='2.5', height='0.9', fontsize='16')
 
 # Головна мета
 dot.node("goal", "ГОЛОВНА МЕТА", shape="box", style="filled", color="#a1c9f1")
@@ -54,10 +55,11 @@ for crit in criteria_names:
 for crit in criteria_names:
     dot.edge(crit, "goal")
 
-st.graphviz_chart(dot, use_container_width=True)
+# 📏 Фіксована висота контейнера Streamlit
+st.graphviz_chart(dot, use_container_width=True, height=900)
 
 # ------------------------------------------------
-# Матриця критеріїв
+# 📊 Матриця критеріїв
 # ------------------------------------------------
 st.markdown("## 📊 Матриця попарних порівнянь критеріїв")
 
@@ -75,11 +77,9 @@ criteria_df = st.data_editor(
 )
 
 # ------------------------------------------------
-# Кнопка "Зберегти зміни"
+# 💾 Кнопка "Зберегти зміни"
 # ------------------------------------------------
-save_clicked = st.button("💾 Зберегти зміни в матриці критеріїв")
-
-if save_clicked:
+if st.button("💾 Зберегти зміни в матриці критеріїв"):
     edited_df = pd.DataFrame(criteria_df, columns=criteria_names, index=criteria_names).astype(float)
     prev = st.session_state.criteria_matrix.copy()
 
@@ -107,7 +107,7 @@ if save_clicked:
 st.caption("🔒 Діагональ = 1.000. Натисни «💾 Зберегти зміни», щоб оновити симетрію.")
 
 # ------------------------------------------------
-# Матриці альтернатив
+# 🧩 Матриці альтернатив
 # ------------------------------------------------
 if "alt_matrices" not in st.session_state:
     st.session_state.alt_matrices = {}
@@ -131,9 +131,7 @@ for tab, crit in zip(tabs, criteria_names):
             use_container_width=True,
         )
 
-        save_alt = st.button(f"💾 Зберегти зміни ({crit})")
-
-        if save_alt:
+        if st.button(f"💾 Зберегти зміни ({crit})"):
             edited_alt_df = pd.DataFrame(alt_df, columns=alternative_names, index=alternative_names).astype(float)
             prev_alt = st.session_state.alt_matrices[crit].copy()
 
@@ -159,7 +157,7 @@ for tab, crit in zip(tabs, criteria_names):
             st.dataframe(edited_alt_df.style.format("{:.3f}"), use_container_width=True)
 
 # ------------------------------------------------
-# Розрахунок глобальних пріоритетів
+# 📈 Розрахунок глобальних пріоритетів
 # ------------------------------------------------
 def calc_weights(matrix):
     col_sum = matrix.sum(axis=0)

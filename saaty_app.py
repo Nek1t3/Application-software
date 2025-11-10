@@ -12,12 +12,65 @@ st.set_page_config(page_title="Метод Сааті", layout="wide")
 st.title("Метод Сааті — Ієрархія задачі")
 
 # ------------------------------------------------
+# 📈 Таблиця випадкової узгодженості (ВВУ / RI)
+# ------------------------------------------------
+# (n: ВВУ) для n = 1...10
+RI_TABLE = {
+    1: 0, 2: 0, 3: 0.58, 4: 0.9, 5: 1.12, 6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49
+}
+
+# ------------------------------------------------
+# 🧮 Функції розрахунку
+# ------------------------------------------------
+def calc_weights(matrix):
+    col_sum = matrix.sum(axis=0)
+    if (col_sum == 0).any():
+        st.warning("Помилка: сума стовпця нульова. Неможливо нормалізувати.")
+        return pd.Series(np.nan, index=matrix.index)
+    if not np.all(np.isfinite(col_sum)) or (col_sum == 0).all():
+        st.error("Помилка в даних матриці (NaN/Inf або нульові стовпці). Розрахунок неможливий.")
+        return pd.Series(np.nan, index=matrix.index)
+
+    norm = matrix / col_sum
+    weights = norm.mean(axis=1)
+    return weights
+
+def calculate_consistency(matrix):
+    """
+    Розраховує Lambda Max, Індекс Узгодженості (ІУ/CI) та Відношення Узгодженості (ВУ/CR).
+    """
+    n = len(matrix)
+    if n < 3:
+        return n, 0, 0 # Для n=1, 2 узгодженість завжди ідеальна
+
+    weights = calc_weights(matrix)
+    if weights.isnull().any():
+        return np.nan, np.nan, np.nan # Помилка при розрахунку ваг
+
+    aw_vector = matrix.dot(weights)
+    consist_vector = aw_vector / weights
+    
+    lambda_max = consist_vector.mean()
+    
+    ci = (lambda_max - n) / (n - 1)
+    
+    ri = RI_TABLE.get(n)
+    if ri == 0:
+        cr = 0 # Уникнення ділення на нуль (хоча n < 3 вже оброблено)
+    else:
+        cr = ci / ri
+        
+    return lambda_max, ci, cr
+
+# ------------------------------------------------
 # 📦 Ініціалізація session_state
 # ------------------------------------------------
 if "num_criteria" not in st.session_state:
     st.session_state.num_criteria = 3
 if "num_alternatives" not in st.session_state:
     st.session_state.num_alternatives = 3
+if "alt_consistency" not in st.session_state:
+    st.session_state.alt_consistency = {}
 
 num_criteria = st.number_input(
     "Кількість критеріїв:", 1, 9, value=st.session_state.num_criteria
@@ -29,12 +82,16 @@ num_alternatives = st.number_input(
 # ✅ Підтримка оновлення при зміні кількості
 if num_criteria != st.session_state.num_criteria:
     st.session_state.num_criteria = int(num_criteria)
-    # При зміні кількості, видаляємо старі ваги
+    # При зміні кількості, видаляємо старі ваги та узгодженість
     if "criteria_weights_display" in st.session_state:
         del st.session_state.criteria_weights_display
+    if "criteria_consistency" in st.session_state:
+        del st.session_state.criteria_consistency
     st.rerun()
 if num_alternatives != st.session_state.num_alternatives:
     st.session_state.num_alternatives = int(num_alternatives)
+    # Скидаємо розрахунки узгодженості для альтернатив
+    st.session_state.alt_consistency = {}
     st.rerun()
 
 # ------------------------------------------------
@@ -74,15 +131,10 @@ if mode == "Зберегти матриці":
             "criteria_matrix": st.session_state.get("criteria_matrix", pd.DataFrame()).to_dict(),
             "alt_matrices": {k: v.to_dict() for k, v in st.session_state.get("alt_matrices", {}).items()},
         }
-
         json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
         b = BytesIO(json_str.encode("utf-8"))
-
         st.sidebar.download_button(
-            label="⬇️ Завантажити JSON-файл",
-            data=b,
-            file_name=f"{filename}.json",
-            mime="application/json",
+            label="⬇️ Завантажити JSON-файл", data=b, file_name=f"{filename}.json", mime="application/json"
         )
         st.sidebar.success(f"✅ Файл {filename}.json готовий до завантаження.")
 
@@ -105,40 +157,31 @@ elif mode == "Імпортувати матриці":
                 st.session_state.alt_matrices = {
                     k: pd.DataFrame(v) for k, v in imported.get("alt_matrices", {}).items()
                 }
-                # При імпорті видаляємо старі розраховані ваги, щоб уникнути невідповідності
+                # Скидаємо всі розрахунки
                 if "criteria_weights_display" in st.session_state:
                     del st.session_state.criteria_weights_display
+                if "criteria_consistency" in st.session_state:
+                    del st.session_state.criteria_consistency
+                st.session_state.alt_consistency = {}
                 st.sidebar.success("✅ Матриці імпортовано! Оновлення застосунку...")
                 st.rerun()
 
         except Exception as e:
             st.sidebar.error(f"❌ Помилка при імпорті: {e}")
 
-# ------------------------------------------------
-# 🎨 Ієрархічна діаграма
-# ------------------------------------------------
+# ... (Код для 🎨 Ієрархічна діаграма ... залишається без змін) ...
 st.markdown("## 🎯 Ієрархія задачі (візуалізація)")
-
 dot = graphviz.Digraph()
-dot.attr(rankdir="BT", size="8,6")  # BT = стрілки знизу вгору
-
-# Головна мета
+dot.attr(rankdir="BT", size="8,6")
 dot.node("goal", goal_name, shape="box", style="filled", color="#a1c9f1")
-
-# Альтернативи (внизу)
 for alt in alternative_names:
     dot.node(alt, alt, shape="ellipse", style="filled", color="#fce8a6")
-
-# Критерії (посередині)
 for crit in criteria_names:
     dot.node(crit, crit, shape="box", style="filled", color="#b6fcb6")
-
-# Стрілки
 for crit in criteria_names:
     for alt in alternative_names:
         dot.edge(alt, crit)
     dot.edge(crit, "goal")
-
 st.graphviz_chart(dot, use_container_width=True)
 
 # ------------------------------------------------
@@ -157,9 +200,10 @@ if (
         columns=criteria_names,
         index=criteria_names,
     )
-    # Якщо матриця скинулась, треба скинути і розраховані ваги
     if "criteria_weights_display" in st.session_state:
         del st.session_state.criteria_weights_display
+    if "criteria_consistency" in st.session_state:
+        del st.session_state.criteria_consistency
 
 # 2. ЗАВЖДИ оновлюємо назви колонок/індексів (це не руйнує дані)
 st.session_state.criteria_matrix.columns = criteria_names
@@ -180,88 +224,83 @@ if save_clicked:
     edited_df = pd.DataFrame(criteria_df, columns=criteria_names, index=criteria_names).astype(float)
     prev = st.session_state.criteria_matrix.copy()
     
-    # Використовуємо лише один трикутник матриці (верхній) для оновлення
+    # ... (Цикл for i in range(num_criteria): ... залишається без змін) ...
     for i in range(num_criteria):
-        for j in range(i, num_criteria): # Починаємо j з i
+        for j in range(i, num_criteria): 
             if i == j:
                 edited_df.iloc[i, j] = 1.0
                 continue
-            
-            # Перевіряємо, чи змінилася комірка (i, j) (верхній трикутник)
             if edited_df.iloc[i, j] != prev.iloc[i, j]:
                 val = edited_df.iloc[i, j]
-                
-                # Це ціле число (напр., 3, 5, 7)
                 if val > 1: 
-                    # Округлюємо його, щоб виправити помилки (напр. 3.003 -> 3.0)
-                    if np.isclose(val, np.round(val)):
-                        val = float(np.round(val))
-                    
+                    if np.isclose(val, np.round(val)): val = float(np.round(val))
                     edited_df.iloc[i, j] = val
-                    edited_df.iloc[j, i] = round(1 / val, 3) # Розраховуємо дріб
-                
-                # Це дріб (напр., 1/3, 1/5, 1/7)
+                    edited_df.iloc[j, i] = round(1 / val, 3)
                 elif val < 1:
-                    val = round(val, 3) # Округлюємо дріб до 3 знаків
+                    val = round(val, 3) 
                     edited_df.iloc[i, j] = val
-                    
-                    # Розраховуємо зворотне і перевіряємо, чи воно близьке до цілого
                     inv_val = 1 / val
                     if np.isclose(inv_val, np.round(inv_val)):
-                        edited_df.iloc[j, i] = float(np.round(inv_val)) # Зберігаємо як 3.0, 7.0 і т.д.
+                        edited_df.iloc[j, i] = float(np.round(inv_val))
                     else:
                         edited_df.iloc[j, i] = round(inv_val, 3)
-
-            # Перевіряємо, чи змінилася комірка (j, i) (нижній трикутник)
             elif edited_df.iloc[j, i] != prev.iloc[j, i]:
                 val = edited_df.iloc[j, i]
-
-                # Це ціле число (напр., 3, 5, 7)
                 if val > 1:
-                    if np.isclose(val, np.round(val)):
-                        val = float(np.round(val))
-                    
+                    if np.isclose(val, np.round(val)): val = float(np.round(val))
                     edited_df.iloc[j, i] = val
-                    edited_df.iloc[i, j] = round(1 / val, 3) # Розраховуємо дріб
-
-                # Це дріб (напр., 1/3, 1/5, 1/7)
+                    edited_df.iloc[i, j] = round(1 / val, 3)
                 elif val < 1:
-                    val = round(val, 3) # Округлюємо дріб
+                    val = round(val, 3)
                     edited_df.iloc[j, i] = val
-                    
                     inv_val = 1 / val
                     if np.isclose(inv_val, np.round(inv_val)):
-                        edited_df.iloc[i, j] = float(np.round(inv_val)) # Робимо цілим
+                        edited_df.iloc[i, j] = float(np.round(inv_val))
                     else:
                         edited_df.iloc[i, j] = round(inv_val, 3)
 
     np.fill_diagonal(edited_df.values, 1.000)
     st.session_state.criteria_matrix = edited_df
 
-    # --- ОНОВЛЕНА ЛОГІКА ---
     # 1. Розраховуємо ваги
-    col_sum = edited_df.sum(axis=0)
-    norm_matrix = edited_df / col_sum
-    weights = norm_matrix.mean(axis=1).round(3)
-
-    # 2. Зберігаємо ваги в session_state для постійного відображення
-    st.session_state.criteria_weights_display = weights
+    weights = calc_weights(edited_df)
+    st.session_state.criteria_weights_display = weights.round(3)
+    
+    # 2. Розраховуємо узгодженість
+    lambda_max, ci, cr = calculate_consistency(edited_df)
+    st.session_state.criteria_consistency = {"lambda": lambda_max, "ci": ci, "cr": cr}
     
     st.success("✅ Матриця критеріїв оновлена та коректно округлена!")
 
 
-# --- НОВИЙ БЛОК: Постійне відображення матриці + ваг ---
+# --- Постійне відображення матриці + ваг + узгодженості ---
 if "criteria_weights_display" in st.session_state:
-    
-    # Переконуємося, що ваги сумісні за розміром (якщо користувач змінив N критеріїв)
     if len(st.session_state.criteria_weights_display) == len(st.session_state.criteria_matrix):
         st.markdown("### Матриця критеріїв з вектором пріоритетів")
         display_df = st.session_state.criteria_matrix.copy()
         display_df["Вектор пріоритетів"] = st.session_state.criteria_weights_display
         st.dataframe(display_df.style.format("{:.3f}"), use_container_width=True)
     else:
-        # Ваги застарілі (кількість критеріїв змінилася), видаляємо їх
         del st.session_state.criteria_weights_display
+        if "criteria_consistency" in st.session_state:
+            del st.session_state.criteria_consistency
+
+# --- БЛОК ВІДОБРАЖЕННЯ УЗГОДЖЕНОСТІ КРИТЕРІЇВ ---
+if "criteria_consistency" in st.session_state:
+    st.markdown("#### 🔬 Аналіз узгодженості критеріїв")
+    cons_data = st.session_state.criteria_consistency
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("λ max (Лямбда)", f"{cons_data['lambda']:.3f}")
+    col2.metric("Індекс Узгодженості (ІУ)", f"{cons_data['ci']:.3f}")
+    col3.metric("Відношення Узгодженості (ВУ)", f"{cons_data['cr']:.1%}") # {cons_data['cr']:.3f}
+    
+    if cons_data['cr'] > 0.20:
+        st.error("🚨 **Увага! ВУ > 20%**\n\nУзгодженість матриці низька. Це означає, що ваші судження суперечливі. Будь ласка, перегляньте та змініть значення в матриці.")
+    elif np.isnan(cons_data['cr']):
+        st.warning("Не вдалося розрахувати узгодженість. Перевірте, чи немає нулів у стовпцях матриці.")
+    else:
+        st.success("✅ **ВУ ≤ 20%**\n\nУзгодженість матриці в межах норми.")
 
 
 # ------------------------------------------------
@@ -279,7 +318,6 @@ for tab, crit in zip(tabs, criteria_names):
         st.markdown(f"### Порівняння альтернатив за критерієм **{crit}**")
 
         # --- ОНОВЛЕНА ЛОГІКА ---
-        # 1. Ініціалізуємо матрицю, ТІЛЬКИ ЯКЩО її немає або змінився РОЗМІР
         if (
             crit not in st.session_state.alt_matrices
             or len(st.session_state.alt_matrices[crit]) != num_alternatives
@@ -289,8 +327,10 @@ for tab, crit in zip(tabs, criteria_names):
                 columns=alternative_names,
                 index=alternative_names,
             )
+            # Якщо матриця нова, видаляємо старі розрахунки
+            if crit in st.session_state.alt_consistency:
+                del st.session_state.alt_consistency[crit]
 
-        # 2. ЗАВЖДИ оновлюємо назви колонок/індексів
         st.session_state.alt_matrices[crit].columns = alternative_names
         st.session_state.alt_matrices[crit].index = alternative_names
 
@@ -306,23 +346,18 @@ for tab, crit in zip(tabs, criteria_names):
             edited_alt_df = pd.DataFrame(alt_df, columns=alternative_names, index=alternative_names).astype(float)
             prev_alt = st.session_state.alt_matrices[crit].copy()
 
-            # Логіка, аналогічна до матриці критеріїв
+            # ... (Цикл for i in range(num_alternatives): ... залишається без змін) ...
             for i in range(num_alternatives):
-                for j in range(i, num_alternatives): # Починаємо j з i
+                for j in range(i, num_alternatives):
                     if i == j:
                         edited_alt_df.iloc[i, j] = 1.0
                         continue
-                    
-                    # Перевіряємо, чи змінилася комірка (i, j) (верхній трикутник)
                     if edited_alt_df.iloc[i, j] != prev_alt.iloc[i, j]:
                         val = edited_alt_df.iloc[i, j]
-                        
                         if val > 1: 
-                            if np.isclose(val, np.round(val)):
-                                val = float(np.round(val))
+                            if np.isclose(val, np.round(val)): val = float(np.round(val))
                             edited_alt_df.iloc[i, j] = val
                             edited_alt_df.iloc[j, i] = round(1 / val, 3)
-                        
                         elif val < 1:
                             val = round(val, 3) 
                             edited_alt_df.iloc[i, j] = val
@@ -331,17 +366,12 @@ for tab, crit in zip(tabs, criteria_names):
                                 edited_alt_df.iloc[j, i] = float(np.round(inv_val))
                             else:
                                 edited_alt_df.iloc[j, i] = round(inv_val, 3)
-
-                    # Перевіряємо, чи змінилася комірка (j, i) (нижній трикутник)
                     elif edited_alt_df.iloc[j, i] != prev_alt.iloc[j, i]:
                         val = edited_alt_df.iloc[j, i]
-
                         if val > 1:
-                            if np.isclose(val, np.round(val)):
-                                val = float(np.round(val))
+                            if np.isclose(val, np.round(val)): val = float(np.round(val))
                             edited_alt_df.iloc[j, i] = val
                             edited_alt_df.iloc[i, j] = round(1 / val, 3)
-
                         elif val < 1:
                             val = round(val, 3)
                             edited_alt_df.iloc[j, i] = val
@@ -353,49 +383,52 @@ for tab, crit in zip(tabs, criteria_names):
 
             np.fill_diagonal(edited_alt_df.values, 1.000)
             st.session_state.alt_matrices[crit] = edited_alt_df
+            
+            # --- Розрахунок узгодженості для матриці альтернатив ---
+            lambda_max, ci, cr = calculate_consistency(edited_alt_df)
+            st.session_state.alt_consistency[crit] = {"lambda": lambda_max, "ci": ci, "cr": cr}
+            
             st.success(f"✅ Матриця для {crit} оновлена!")
             
             # Показуємо оновлену матрицю відразу
             st.dataframe(edited_alt_df.style.format("{:.3f}"), use_container_width=True)
 
+        # --- БЛОК ВІДОБРАЖЕННЯ УЗГОДЖЕНОСТІ АЛЬТЕРНАТИВ ---
+        if crit in st.session_state.alt_consistency:
+            st.markdown(f"#### 🔬 Аналіз узгодженості для **{crit}**")
+            cons_data = st.session_state.alt_consistency[crit]
+            
+            col1, col2, col3 = st.columns(3)
+            col1.metric("λ max (Лямбда)", f"{cons_data['lambda']:.3f}")
+            col2.metric("Індекс Узгодженості (ІУ)", f"{cons_data['ci']:.3f}")
+            col3.metric("Відношення Узгодженості (ВУ)", f"{cons_data['cr']:.1%}")
+            
+            if cons_data['cr'] > 0.20:
+                st.error(f"🚨 **Увага! ВУ > 20%**\n\nУзгодженість матриці для '{crit}' низька. Перегляньте ваші порівняння.")
+            elif np.isnan(cons_data['cr']):
+                st.warning("Не вдалося розрахувати узгодженість. Перевірте, чи немає нулів у стовпцях матриці.")
+            else:
+                st.success(f"✅ **ВУ ≤ 20%**\n\nУзгодженість матриці для '{crit}' в межах норми.")
+
+
 # ------------------------------------------------
 # 🧮 Розрахунок глобальних пріоритетів
 # ------------------------------------------------
-def calc_weights(matrix):
-    col_sum = matrix.sum(axis=0)
-    # Перевірка на нульові суми, щоб уникнути ділення на нуль
-    if (col_sum == 0).any():
-        st.warning("Помилка: сума стовпця нульова. Неможливо нормалізувати.")
-        return pd.Series(np.nan, index=matrix.index)
-    
-    # Перевірка на NaN/Inf у сумах
-    if not np.all(np.isfinite(col_sum)) or (col_sum == 0).all():
-        st.error("Помилка в даних матриці (NaN/Inf або нульові стовпці). Розрахунок неможливий.")
-        return pd.Series(np.nan, index=matrix.index)
-
-    norm = matrix / col_sum
-    weights = norm.mean(axis=1)
-    return weights
-
 st.markdown("---")
 st.markdown("## 🧮 Розрахунок глобальних пріоритетів")
 
-# Перевіряємо, чи всі матриці існують
+# ... (Код розрахунку ... залишається без змін) ...
 criteria_ready = "criteria_matrix" in st.session_state
 alts_ready = all(crit in st.session_state.alt_matrices for crit in criteria_names)
 
 if criteria_ready and alts_ready and len(criteria_names) > 0 and len(alternative_names) > 0:
-    
     try:
         criteria_weights = calc_weights(st.session_state.criteria_matrix)
-        
-        # Перевірка, чи ваги критеріїв розрахувалися
         if criteria_weights.isnull().any():
             st.error("❌ Не вдалося розрахувати ваги критеріїв. Перевірте матрицю критеріїв.")
         else:
             alt_weights_dict = {}
             all_alts_calculated = True
-            
             for crit in criteria_names:
                 weights = calc_weights(st.session_state.alt_matrices[crit])
                 if weights.isnull().any():
@@ -403,20 +436,11 @@ if criteria_ready and alts_ready and len(criteria_names) > 0 and len(alternative
                     all_alts_calculated = False
                     break
                 alt_weights_dict[crit] = weights
-
             if all_alts_calculated:
-                # Створюємо DataFrame з вагами альтернатив
                 alt_weights_df = pd.DataFrame(alt_weights_dict)
-                
-                # Переконуємося, що індекси та стовпці збігаються
                 alt_weights_df = alt_weights_df.reindex(index=alternative_names, columns=criteria_names)
                 criteria_weights = criteria_weights.reindex(index=criteria_names)
-
-                # Множимо ваги альтернатив на ваги критеріїв
-                # (alt_weights_df - (N_alt x N_crit), criteria_weights - (N_crit x 1))
                 global_priorities_vec = alt_weights_df.dot(criteria_weights)
-                
-                # Створюємо підсумковий DataFrame
                 global_priorities_display = pd.DataFrame({
                     "Глоб. пріор.": global_priorities_vec
                 }, index=alternative_names)
@@ -424,15 +448,10 @@ if criteria_ready and alts_ready and len(criteria_names) > 0 and len(alternative
                 
                 st.markdown("### 1. Ваги альтернатив по кожному критерію (W_ij)")
                 st.dataframe(alt_weights_df.style.format("{:.3f}"), use_container_width=True)
-                
-                # Блок "Ваги критеріїв (W_j)" видалено, оскільки він тепер відображається вище.
-
                 st.markdown("### 2. Глобальні пріоритети (W_i)")
                 st.dataframe(global_priorities_display.style.format("{:.3f}"), use_container_width=True)
-                
                 st.success("✅ Розрахунок завершено!")
-
     except Exception as e:
-        st.error(f"❌ Помилка при розрахунку глобальних пріоритетів: {e}. Перевірте введені значення.")
+        st.error(f"❌ Помилка при розрахунку глобальних пріоRитетів: {e}. Перевірте введені значення.")
 else:
     st.warning("⚠️ Необхідно заповнити та зберегти Матрицю критеріїв та всі Матриці альтернатив для розрахунку.")

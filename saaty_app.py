@@ -136,7 +136,7 @@ def enforce_symmetry(df):
     edited = df.copy()
     n = len(df)
     for i in range(n):
-        for j in range(i + 1, n):  # ✅ лише верхній трикутник
+        for j in range(i + 1, n):  # лише верхній трикутник
             if edited.iloc[i, j] != 0:
                 edited.iloc[j, i] = round(1 / edited.iloc[i, j], 3)
             elif edited.iloc[j, i] != 0:
@@ -154,7 +154,9 @@ if save_clicked:
     edited_df = enforce_symmetry(edited_df)
     st.session_state.criteria_matrix = edited_df
     st.success("✅ Матриця оновлена! Симетричність забезпечено.")
+    st.rerun()  # 🔁 одразу оновлює застосунок
 
+# Після реруну - нові значення доступні
 lambda_max, CI, RI, CR = calc_consistency(st.session_state.criteria_matrix)
 st.markdown(
     f"**λ<sub>max</sub> = {lambda_max:.3f}**, **ІУ = {CI:.3f}**, **ВВУ = {RI:.3f}**, **ВУ = {CR*100:.1f}%**",
@@ -197,6 +199,7 @@ for tab, crit in zip(tabs, criteria_names):
             edited_alt_df = enforce_symmetry(edited_alt_df)
             st.session_state.alt_matrices[crit] = edited_alt_df
             st.success(f"✅ Матриця для {crit} оновлена! Симетричність забезпечено.")
+            st.rerun()  # 🔁 миттєво оновлює вкладку
 
         lam, ci, ri, cr = calc_consistency(st.session_state.alt_matrices[crit])
         st.markdown(

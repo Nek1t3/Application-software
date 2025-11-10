@@ -95,9 +95,6 @@ st.graphviz_chart(dot, use_container_width=True)
 # =========================
 # 🔧 Допоміжні функції
 # =========================
-RI_TABLE = {1: 0, 2: 0, 3: 0.58, 4: 0.9, 5: 1.12, 6: 1.24,
-             7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49}
-
 def enforce_full_symmetry(df: pd.DataFrame) -> pd.DataFrame:
     """Забезпечує повну симетрію матриці."""
     df = df.copy().fillna(1.0)
@@ -115,16 +112,7 @@ def enforce_full_symmetry(df: pd.DataFrame) -> pd.DataFrame:
             df.iloc[j, i] = round(1 / val, 3)
     return df
 
-def calc_consistency(mat):
-    n = len(mat)
-    eigvals = np.linalg.eigvals(mat.values.astype(float))
-    lam_max = np.max(np.real(eigvals))
-    CI = (lam_max - n) / (n - 1) if n > 1 else 0.0
-    RI = RI_TABLE.get(n, 1.49)
-    CR = CI / RI if RI else 0.0
-    return lam_max, CI, RI, CR
-
-def calc_weights(mat):
+def calc_weights(mat: pd.DataFrame) -> pd.Series:
     col_sum = mat.sum(axis=0)
     norm = mat / col_sum
     return norm.mean(axis=1)
@@ -150,13 +138,6 @@ if st.button("💾 Зберегти зміни в матриці критері�
     st.success("✅ Повна симетричність застосована для всієї матриці.")
     st.rerun()
 
-lam, ci, ri, cr = calc_consistency(ss.criteria_matrix)
-st.markdown(f"**λₘₐₓ = {lam:.3f}**, **ІУ = {ci:.3f}**, **ВВУ = {ri:.3f}**, **ВУ = {cr*100:.1f}%**", unsafe_allow_html=True)
-if cr <= 0.2:
-    st.info("ℹ️ ВУ < 20% — узгодженість прийнятна.")
-else:
-    st.error("❌ ВУ > 20% — перевірте оцінки!")
-
 # =========================
 # ⚙️ Матриці альтернатив
 # =========================
@@ -180,13 +161,6 @@ for idx, crit in enumerate(criteria_names):
             ss.alt_matrices[crit] = enforce_full_symmetry(edited_alt)
             st.success(f"✅ Симетричність застосовано ({crit}).")
             st.rerun()
-
-        lam_a, ci_a, ri_a, cr_a = calc_consistency(ss.alt_matrices[crit])
-        st.markdown(f"**λₘₐₓ = {lam_a:.3f}**, **ІУ = {ci_a:.3f}**, **ВВУ = {ri_a:.3f}**, **ВУ = {cr_a*100:.1f}%**", unsafe_allow_html=True)
-        if cr_a <= 0.2:
-            st.info("ℹ️ ВУ < 20% — узгодженість прийнятна.")
-        else:
-            st.error("❌ ВУ > 20% — змініть оцінки!")
 
 # =========================
 # 🧮 Глобальні пріоритети

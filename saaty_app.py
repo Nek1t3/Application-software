@@ -19,9 +19,6 @@ if "num_criteria" not in st.session_state:
 if "num_alternatives" not in st.session_state:
     st.session_state.num_alternatives = 3
 
-# Встановлюємо формат відображення для Streamlit DataFrame
-pd.set_option('display.float_format', '{:.3f}'.format)
-
 num_criteria = st.number_input(
     "Кількість критеріїв:", 1, 9, value=st.session_state.num_criteria
 )
@@ -160,9 +157,11 @@ else:
     st.session_state.criteria_matrix.index = criteria_names
 
 criteria_df = st.data_editor(
-    st.session_state.criteria_matrix.style.format("{:.3f}"), # Додаємо форматування для відображення
+    st.session_state.criteria_matrix,  # Подаємо чистий DataFrame
     key="criteria_editor",
     use_container_width=True,
+    # Встановлюємо формат лише для ВІДОБРАЖЕННЯ, якщо це можливо в нових версіях (але краще форматувати дані при збереженні)
+    # У нових версіях streamlit можна використовувати column_config для форматування
 )
 
 # ------------------------------------------------
@@ -172,46 +171,65 @@ save_clicked = st.button("💾 Зберегти зміни в матриці к�
 
 if save_clicked:
     edited_df = pd.DataFrame(criteria_df, columns=criteria_names, index=criteria_names).astype(float)
+    prev = st.session_state.criteria_matrix.copy()
     
+    # Використовуємо лише один трикутник матриці (верхній) для оновлення
     for i in range(num_criteria):
-        for j in range(num_criteria):
+        for j in range(i, num_criteria): # Починаємо j з i
             if i == j:
-                edited_df.iloc[i, j] = 1.000
-            else:
+                edited_df.iloc[i, j] = 1.0
+                continue
+            
+            # Перевіряємо, чи змінилася комірка (i, j) (верхній трикутник)
+            if edited_df.iloc[i, j] != prev.iloc[i, j]:
                 val = edited_df.iloc[i, j]
-                if pd.notna(val) and val != 0:
-                    
-                    # Перевіряємо, чи число близьке до цілого (1-9)
-                    if np.isclose(val, np.round(val)) and 1 <= np.round(val) <= 9:
-                        val = float(np.round(val)) # Фіксуємо як точне ціле число (1, 2, 3...)
-                        inv = round(1 / val, 3)    # Обернене округлюємо до 3 знаків
-                    else:
-                        # Якщо це обернене значення (1/N), зберігаємо його і округлюємо
-                        val = round(val, 3)
-                        
-                        # Якщо обернене значення, розраховуємо зворотнє як ціле
-                        # Перевіряємо, чи зворотнє число близьке до цілого (1-9)
-                        if np.isclose(1 / val, np.round(1 / val)) and 1 <= np.round(1 / val) <= 9:
-                             inv = float(np.round(1 / val))
-                        else:
-                            inv = round(1 / val, 3)
+                
+                # Це ціле число (напр., 3, 5, 7)
+                if val > 1: 
+                    # Округлюємо його, щоб виправити помилки (напр. 3.003 -> 3.0)
+                    if np.isclose(val, np.round(val)):
+                        val = float(np.round(val))
                     
                     edited_df.iloc[i, j] = val
+                    edited_df.iloc[j, i] = round(1 / val, 3) # Розраховуємо дріб
+                
+                # Це дріб (напр., 1/3, 1/5, 1/7)
+                elif val < 1:
+                    val = round(val, 3) # Округлюємо дріб до 3 знаків
+                    edited_df.iloc[i, j] = val
                     
-                    # Симетричний елемент: якщо поточне (i, j) = N, тоді (j, i) = 1/N
-                    # Якщо поточне (i, j) = 1/N, тоді (j, i) = N
-                    if edited_df.iloc[i, j] > 1:
-                         edited_df.iloc[j, i] = round(1 / edited_df.iloc[i, j], 3)
-                    elif edited_df.iloc[i, j] < 1:
-                         # Розраховуємо обернене значення, щоб воно було цілим (якщо близьке)
-                         inv_val = 1 / edited_df.iloc[i, j]
-                         if np.isclose(inv_val, np.round(inv_val)) and 1 <= np.round(inv_val) <= 9:
-                             edited_df.iloc[j, i] = float(np.round(inv_val))
-                         else:
-                             edited_df.iloc[j, i] = round(inv_val, 3)
+                    # Розраховуємо зворотне і перевіряємо, чи воно близьке до цілого
+                    inv_val = 1 / val
+                    if np.isclose(inv_val, np.round(inv_val)):
+                        edited_df.iloc[j, i] = float(np.round(inv_val)) # Зберігаємо як 3.0, 7.0 і т.д.
+                    else:
+                        edited_df.iloc[j, i] = round(inv_val, 3)
+
+            # Перевіряємо, чи змінилася комірка (j, i) (нижній трикутник)
+            elif edited_df.iloc[j, i] != prev.iloc[j, i]:
+                val = edited_df.iloc[j, i]
+
+                # Це ціле число (напр., 3, 5, 7)
+                if val > 1:
+                    if np.isclose(val, np.round(val)):
+                        val = float(np.round(val))
+                    
+                    edited_df.iloc[j, i] = val
+                    edited_df.iloc[i, j] = round(1 / val, 3) # Розраховуємо дріб
+
+                # Це дріб (напр., 1/3, 1/5, 1/7)
+                elif val < 1:
+                    val = round(val, 3) # Округлюємо дріб
+                    edited_df.iloc[j, i] = val
+                    
+                    inv_val = 1 / val
+                    if np.isclose(inv_val, np.round(inv_val)):
+                        edited_df.iloc[i, j] = float(np.round(inv_val)) # Робимо цілим
+                    else:
+                        edited_df.iloc[i, j] = round(inv_val, 3)
 
     np.fill_diagonal(edited_df.values, 1.000)
-    st.session_state.criteria_matrix = edited_df.copy() # Копіюємо оновлену матрицю
+    st.session_state.criteria_matrix = edited_df
 
     col_sum = edited_df.sum(axis=0)
     norm_matrix = edited_df / col_sum
@@ -220,8 +238,9 @@ if save_clicked:
     result_df = edited_df.copy()
     result_df["Вектор пріоритетів"] = weights
 
-    st.success("✅ Матриця критеріїв оновлена та округлена відповідно до правил Сааті!")
+    st.success("✅ Матриця критеріїв оновлена та коректно округлена!")
     st.dataframe(result_df.style.format("{:.3f}"), use_container_width=True)
+    st.rerun() # Примусово оновлюємо сторінку, щоб data_editor підтягнув чисті дані
 
 # ------------------------------------------------
 # ⚙️ Матриці альтернатив
@@ -250,7 +269,7 @@ for tab, crit in zip(tabs, criteria_names):
             st.session_state.alt_matrices[crit].index = alternative_names
 
         alt_df = st.data_editor(
-            st.session_state.alt_matrices[crit].style.format("{:.3f}"),
+            st.session_state.alt_matrices[crit],
             key=f"matrix_{crit}",
             use_container_width=True,
         )
@@ -259,44 +278,68 @@ for tab, crit in zip(tabs, criteria_names):
 
         if save_alt:
             edited_alt_df = pd.DataFrame(alt_df, columns=alternative_names, index=alternative_names).astype(float)
-            
-            for i in range(num_alternatives):
-                for j in range(num_alternatives):
-                    if i == j:
-                        edited_alt_df.iloc[i, j] = 1.000
-                    else:
-                        val = edited_alt_df.iloc[i, j]
-                        if pd.notna(val) and val != 0:
-                            
-                            # Перевіряємо, чи число близьке до цілого (1-9)
-                            if np.isclose(val, np.round(val)) and 1 <= np.round(val) <= 9:
-                                val = float(np.round(val)) # Фіксуємо як точне ціле число (1, 2, 3...)
-                            else:
-                                val = round(val, 3)
-                            
-                            edited_alt_df.iloc[i, j] = val
+            prev_alt = st.session_state.alt_matrices[crit].copy()
 
-                            # Симетричний елемент:
-                            if edited_alt_df.iloc[i, j] > 1:
-                                edited_alt_df.iloc[j, i] = round(1 / edited_alt_df.iloc[i, j], 3)
-                            elif edited_alt_df.iloc[i, j] < 1:
-                                # Розраховуємо обернене значення, щоб воно було цілим (якщо близьке)
-                                inv_val = 1 / edited_alt_df.iloc[i, j]
-                                if np.isclose(inv_val, np.round(inv_val)) and 1 <= np.round(inv_val) <= 9:
-                                    edited_alt_df.iloc[j, i] = float(np.round(inv_val))
-                                else:
-                                    edited_alt_df.iloc[j, i] = round(inv_val, 3)
+            # Логіка, аналогічна до матриці критеріїв
+            for i in range(num_alternatives):
+                for j in range(i, num_alternatives): # Починаємо j з i
+                    if i == j:
+                        edited_alt_df.iloc[i, j] = 1.0
+                        continue
+                    
+                    # Перевіряємо, чи змінилася комірка (i, j) (верхній трикутник)
+                    if edited_alt_df.iloc[i, j] != prev_alt.iloc[i, j]:
+                        val = edited_alt_df.iloc[i, j]
+                        
+                        if val > 1: 
+                            if np.isclose(val, np.round(val)):
+                                val = float(np.round(val))
+                            edited_alt_df.iloc[i, j] = val
+                            edited_alt_df.iloc[j, i] = round(1 / val, 3)
+                        
+                        elif val < 1:
+                            val = round(val, 3) 
+                            edited_alt_df.iloc[i, j] = val
+                            inv_val = 1 / val
+                            if np.isclose(inv_val, np.round(inv_val)):
+                                edited_alt_df.iloc[j, i] = float(np.round(inv_val))
+                            else:
+                                edited_alt_df.iloc[j, i] = round(inv_val, 3)
+
+                    # Перевіряємо, чи змінилася комірка (j, i) (нижній трикутник)
+                    elif edited_alt_df.iloc[j, i] != prev_alt.iloc[j, i]:
+                        val = edited_alt_df.iloc[j, i]
+
+                        if val > 1:
+                            if np.isclose(val, np.round(val)):
+                                val = float(np.round(val))
+                            edited_alt_df.iloc[j, i] = val
+                            edited_alt_df.iloc[i, j] = round(1 / val, 3)
+
+                        elif val < 1:
+                            val = round(val, 3)
+                            edited_alt_df.iloc[j, i] = val
+                            inv_val = 1 / val
+                            if np.isclose(inv_val, np.round(inv_val)):
+                                edited_alt_df.iloc[i, j] = float(np.round(inv_val))
+                            else:
+                                edited_alt_df.iloc[i, j] = round(inv_val, 3)
 
             np.fill_diagonal(edited_alt_df.values, 1.000)
-            st.session_state.alt_matrices[crit] = edited_alt_df.copy()
-            st.success(f"✅ Матриця для {crit} оновлена та округлена!")
+            st.session_state.alt_matrices[crit] = edited_alt_df
+            st.success(f"✅ Матриця для {crit} оновлена!")
             st.dataframe(edited_alt_df.style.format("{:.3f}"), use_container_width=True)
+            st.rerun() # Примусове оновлення
 
 # ------------------------------------------------
 # 🧮 Розрахунок глобальних пріоритетів
 # ------------------------------------------------
 def calc_weights(matrix):
     col_sum = matrix.sum(axis=0)
+    # Перевірка на нульові суми, щоб уникнути ділення на нуль
+    if (col_sum == 0).any():
+        st.warning("Помилка: сума стовпця нульова. Неможливо нормалізувати.")
+        return pd.Series(np.nan, index=matrix.index)
     norm = matrix / col_sum
     weights = norm.mean(axis=1)
     return weights
@@ -304,31 +347,58 @@ def calc_weights(matrix):
 st.markdown("---")
 st.markdown("## 🧮 Розрахунок глобальних пріоритетів")
 
-if "criteria_matrix" in st.session_state and all(crit in st.session_state.alt_matrices for crit in criteria_names):
+# Перевіряємо, чи всі матриці існують
+criteria_ready = "criteria_matrix" in st.session_state
+alts_ready = all(crit in st.session_state.alt_matrices for crit in criteria_names)
+
+if criteria_ready and alts_ready and len(criteria_names) > 0 and len(alternative_names) > 0:
     
     try:
         criteria_weights = calc_weights(st.session_state.criteria_matrix)
-        alt_weights = {crit: calc_weights(st.session_state.alt_matrices[crit]) for crit in criteria_names}
-
-        global_priorities = pd.DataFrame(index=alternative_names)
-        for crit, w in zip(criteria_names, criteria_weights):
-            # Перевірка, щоб уникнути помилок, якщо матриці мають різну розмірність
-            if len(alt_weights[crit]) == len(alternative_names):
-                global_priorities[crit] = alt_weights[crit].values * w
-            else:
-                 st.warning(f"⚠️ Проблема з розмірністю матриці для критерію {crit}. Пропускаємо.")
-                 global_priorities[crit] = np.nan
-                 
-        global_priorities.dropna(axis=1, how='all', inplace=True) # Видалити стовпці з NaN
-
-        if not global_priorities.empty:
-            global_priorities["Глоб. пріор."] = global_priorities.sum(axis=1)
-            global_priorities = global_priorities.sort_values("Глоб. пріор.", ascending=False)
-
-            st.dataframe(global_priorities.style.format("{:.3f}"), use_container_width=True)
-            st.success("✅ Розрахунок завершено! Назви синхронізовані з редагованими.")
+        
+        # Перевірка, чи ваги критеріїв розрахувалися
+        if criteria_weights.isnull().any():
+            st.error("❌ Не вдалося розрахувати ваги критеріїв. Перевірте матрицю критеріїв.")
         else:
-             st.error("❌ Неможливо розрахувати глобальні пріоритети. Перевірте розмірності матриць.")
+            alt_weights_dict = {}
+            all_alts_calculated = True
+            
+            for crit in criteria_names:
+                weights = calc_weights(st.session_state.alt_matrices[crit])
+                if weights.isnull().any():
+                    st.error(f"❌ Не вдалося розрахувати ваги для альтернатив за критерієм '{crit}'.")
+                    all_alts_calculated = False
+                    break
+                alt_weights_dict[crit] = weights
+
+            if all_alts_calculated:
+                # Створюємо DataFrame з вагами альтернатив
+                alt_weights_df = pd.DataFrame(alt_weights_dict)
+                
+                # Множимо ваги альтернатив на ваги критеріїв
+                # (alt_weights_df - (N_alt x N_crit), criteria_weights - (N_crit x 1))
+                global_priorities_vec = alt_weights_df.dot(criteria_weights)
+                
+                # Додаємо розрахунки до DataFrame для відображення
+                final_df = alt_weights_df.copy()
+                final_df['Ваги крит. (Wk)'] = criteria_weights
+                
+                # Створюємо підсумковий DataFrame
+                global_priorities_display = pd.DataFrame({
+                    "Глоб. пріор.": global_priorities_vec
+                })
+                global_priorities_display = global_priorities_display.sort_values("Глоб. пріор.", ascending=False)
+                
+                st.markdown("### 1. Ваги альтернатив по кожному критерію (W_ij)")
+                st.dataframe(alt_weights_df.style.format("{:.3f}"), use_container_width=True)
+                
+                st.markdown("### 2. Ваги критеріїв (W_j)")
+                st.dataframe(criteria_weights.to_frame(name="Вага").style.format("{:.3f}"), use_container_width=True)
+
+                st.markdown("### 3. Глобальні пріоритети (W_i)")
+                st.dataframe(global_priorities_display.style.format("{:.3f}"), use_container_width=True)
+                
+                st.success("✅ Розрахунок завершено!")
 
     except Exception as e:
         st.error(f"❌ Помилка при розрахунку глобальних пріоритетів: {e}. Перевірте введені значення.")

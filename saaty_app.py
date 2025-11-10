@@ -132,15 +132,15 @@ def calc_consistency(matrix):
 
 
 def enforce_symmetry(df):
-    """Забезпечує симетричність A[i][j] = 1 / A[j][i]"""
+    """Коректно оновлює симетрію A[i][j] = 1 / A[j][i] без скидання."""
     edited = df.copy()
     n = len(df)
     for i in range(n):
-        for j in range(n):
-            if i == j:
-                edited.iloc[i, j] = 1.0
-            elif edited.iloc[i, j] != 0:
+        for j in range(i + 1, n):  # ✅ лише верхній трикутник
+            if edited.iloc[i, j] != 0:
                 edited.iloc[j, i] = round(1 / edited.iloc[i, j], 3)
+            elif edited.iloc[j, i] != 0:
+                edited.iloc[i, j] = round(1 / edited.iloc[j, i], 3)
     np.fill_diagonal(edited.values, 1.0)
     return edited
 

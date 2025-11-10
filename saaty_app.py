@@ -19,6 +19,9 @@ if "num_criteria" not in st.session_state:
 if "num_alternatives" not in st.session_state:
     st.session_state.num_alternatives = 3
 
+# Встановлюємо формат відображення для Streamlit DataFrame
+pd.set_option('display.float_format', '{:.3f}'.format)
+
 num_criteria = st.number_input(
     "Кількість критеріїв:", 1, 9, value=st.session_state.num_criteria
 )
@@ -157,7 +160,7 @@ else:
     st.session_state.criteria_matrix.index = criteria_names
 
 criteria_df = st.data_editor(
-    st.session_state.criteria_matrix,
+    st.session_state.criteria_matrix.style.format("{:.3f}"), # Додаємо форматування для відображення
     key="criteria_editor",
     use_container_width=True,
 )
@@ -169,22 +172,46 @@ save_clicked = st.button("💾 Зберегти зміни в матриці к�
 
 if save_clicked:
     edited_df = pd.DataFrame(criteria_df, columns=criteria_names, index=criteria_names).astype(float)
-    prev = st.session_state.criteria_matrix.copy()
-
+    
     for i in range(num_criteria):
         for j in range(num_criteria):
             if i == j:
                 edited_df.iloc[i, j] = 1.000
-            elif edited_df.iloc[i, j] != prev.iloc[i, j]:
-                val = float(edited_df.iloc[i, j])
+            else:
+                val = edited_df.iloc[i, j]
                 if pd.notna(val) and val != 0:
-                    val = round(val, 3)
-                    inv = round(1 / val, 3)
+                    
+                    # Перевіряємо, чи число близьке до цілого (1-9)
+                    if np.isclose(val, np.round(val)) and 1 <= np.round(val) <= 9:
+                        val = float(np.round(val)) # Фіксуємо як точне ціле число (1, 2, 3...)
+                        inv = round(1 / val, 3)    # Обернене округлюємо до 3 знаків
+                    else:
+                        # Якщо це обернене значення (1/N), зберігаємо його і округлюємо
+                        val = round(val, 3)
+                        
+                        # Якщо обернене значення, розраховуємо зворотнє як ціле
+                        # Перевіряємо, чи зворотнє число близьке до цілого (1-9)
+                        if np.isclose(1 / val, np.round(1 / val)) and 1 <= np.round(1 / val) <= 9:
+                             inv = float(np.round(1 / val))
+                        else:
+                            inv = round(1 / val, 3)
+                    
                     edited_df.iloc[i, j] = val
-                    edited_df.iloc[j, i] = inv
+                    
+                    # Симетричний елемент: якщо поточне (i, j) = N, тоді (j, i) = 1/N
+                    # Якщо поточне (i, j) = 1/N, тоді (j, i) = N
+                    if edited_df.iloc[i, j] > 1:
+                         edited_df.iloc[j, i] = round(1 / edited_df.iloc[i, j], 3)
+                    elif edited_df.iloc[i, j] < 1:
+                         # Розраховуємо обернене значення, щоб воно було цілим (якщо близьке)
+                         inv_val = 1 / edited_df.iloc[i, j]
+                         if np.isclose(inv_val, np.round(inv_val)) and 1 <= np.round(inv_val) <= 9:
+                             edited_df.iloc[j, i] = float(np.round(inv_val))
+                         else:
+                             edited_df.iloc[j, i] = round(inv_val, 3)
 
     np.fill_diagonal(edited_df.values, 1.000)
-    st.session_state.criteria_matrix = edited_df
+    st.session_state.criteria_matrix = edited_df.copy() # Копіюємо оновлену матрицю
 
     col_sum = edited_df.sum(axis=0)
     norm_matrix = edited_df / col_sum
@@ -193,7 +220,7 @@ if save_clicked:
     result_df = edited_df.copy()
     result_df["Вектор пріоритетів"] = weights
 
-    st.success("✅ Матриця критеріїв оновлена!")
+    st.success("✅ Матриця критеріїв оновлена та округлена відповідно до правил Сааті!")
     st.dataframe(result_df.style.format("{:.3f}"), use_container_width=True)
 
 # ------------------------------------------------
@@ -223,7 +250,7 @@ for tab, crit in zip(tabs, criteria_names):
             st.session_state.alt_matrices[crit].index = alternative_names
 
         alt_df = st.data_editor(
-            st.session_state.alt_matrices[crit],
+            st.session_state.alt_matrices[crit].style.format("{:.3f}"),
             key=f"matrix_{crit}",
             use_container_width=True,
         )
@@ -232,23 +259,37 @@ for tab, crit in zip(tabs, criteria_names):
 
         if save_alt:
             edited_alt_df = pd.DataFrame(alt_df, columns=alternative_names, index=alternative_names).astype(float)
-            prev_alt = st.session_state.alt_matrices[crit].copy()
-
+            
             for i in range(num_alternatives):
                 for j in range(num_alternatives):
                     if i == j:
                         edited_alt_df.iloc[i, j] = 1.000
-                    elif edited_alt_df.iloc[i, j] != prev_alt.iloc[i, j]:
-                        val = float(edited_alt_df.iloc[i, j])
+                    else:
+                        val = edited_alt_df.iloc[i, j]
                         if pd.notna(val) and val != 0:
-                            val = round(val, 3)
-                            inv = round(1 / val, 3)
+                            
+                            # Перевіряємо, чи число близьке до цілого (1-9)
+                            if np.isclose(val, np.round(val)) and 1 <= np.round(val) <= 9:
+                                val = float(np.round(val)) # Фіксуємо як точне ціле число (1, 2, 3...)
+                            else:
+                                val = round(val, 3)
+                            
                             edited_alt_df.iloc[i, j] = val
-                            edited_alt_df.iloc[j, i] = inv
+
+                            # Симетричний елемент:
+                            if edited_alt_df.iloc[i, j] > 1:
+                                edited_alt_df.iloc[j, i] = round(1 / edited_alt_df.iloc[i, j], 3)
+                            elif edited_alt_df.iloc[i, j] < 1:
+                                # Розраховуємо обернене значення, щоб воно було цілим (якщо близьке)
+                                inv_val = 1 / edited_alt_df.iloc[i, j]
+                                if np.isclose(inv_val, np.round(inv_val)) and 1 <= np.round(inv_val) <= 9:
+                                    edited_alt_df.iloc[j, i] = float(np.round(inv_val))
+                                else:
+                                    edited_alt_df.iloc[j, i] = round(inv_val, 3)
 
             np.fill_diagonal(edited_alt_df.values, 1.000)
-            st.session_state.alt_matrices[crit] = edited_alt_df
-            st.success(f"✅ Матриця для {crit} оновлена!")
+            st.session_state.alt_matrices[crit] = edited_alt_df.copy()
+            st.success(f"✅ Матриця для {crit} оновлена та округлена!")
             st.dataframe(edited_alt_df.style.format("{:.3f}"), use_container_width=True)
 
 # ------------------------------------------------
@@ -263,15 +304,33 @@ def calc_weights(matrix):
 st.markdown("---")
 st.markdown("## 🧮 Розрахунок глобальних пріоритетів")
 
-criteria_weights = calc_weights(st.session_state.criteria_matrix)
-alt_weights = {crit: calc_weights(st.session_state.alt_matrices[crit]) for crit in criteria_names}
+if "criteria_matrix" in st.session_state and all(crit in st.session_state.alt_matrices for crit in criteria_names):
+    
+    try:
+        criteria_weights = calc_weights(st.session_state.criteria_matrix)
+        alt_weights = {crit: calc_weights(st.session_state.alt_matrices[crit]) for crit in criteria_names}
 
-global_priorities = pd.DataFrame(index=alternative_names)
-for crit, w in zip(criteria_names, criteria_weights):
-    global_priorities[crit] = alt_weights[crit] * w
+        global_priorities = pd.DataFrame(index=alternative_names)
+        for crit, w in zip(criteria_names, criteria_weights):
+            # Перевірка, щоб уникнути помилок, якщо матриці мають різну розмірність
+            if len(alt_weights[crit]) == len(alternative_names):
+                global_priorities[crit] = alt_weights[crit].values * w
+            else:
+                 st.warning(f"⚠️ Проблема з розмірністю матриці для критерію {crit}. Пропускаємо.")
+                 global_priorities[crit] = np.nan
+                 
+        global_priorities.dropna(axis=1, how='all', inplace=True) # Видалити стовпці з NaN
 
-global_priorities["Глоб. пріор."] = global_priorities.sum(axis=1)
-global_priorities = global_priorities.sort_values("Глоб. пріор.", ascending=False)
+        if not global_priorities.empty:
+            global_priorities["Глоб. пріор."] = global_priorities.sum(axis=1)
+            global_priorities = global_priorities.sort_values("Глоб. пріор.", ascending=False)
 
-st.dataframe(global_priorities.style.format("{:.3f}"), use_container_width=True)
-st.success("✅ Розрахунок завершено! Назви синхронізовані з редагованими.")
+            st.dataframe(global_priorities.style.format("{:.3f}"), use_container_width=True)
+            st.success("✅ Розрахунок завершено! Назви синхронізовані з редагованими.")
+        else:
+             st.error("❌ Неможливо розрахувати глобальні пріоритети. Перевірте розмірності матриць.")
+
+    except Exception as e:
+        st.error(f"❌ Помилка при розрахунку глобальних пріоритетів: {e}. Перевірте введені значення.")
+else:
+    st.warning("⚠️ Необхідно заповнити та зберегти Матрицю критеріїв та всі Матриці альтернатив для розрахунку.")

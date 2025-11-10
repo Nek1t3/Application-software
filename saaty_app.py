@@ -146,21 +146,24 @@ st.graphviz_chart(dot, use_container_width=True)
 # ------------------------------------------------
 st.markdown("## 📊 Матриця попарних порівнянь критеріїв")
 
+# --- ОНОВЛЕНА ЛОГІКА ---
+# 1. Ініціалізуємо матрицю, ТІЛЬКИ ЯКЩО її немає або змінився РОЗМІР
 if (
     "criteria_matrix" not in st.session_state
     or len(st.session_state.criteria_matrix) != num_criteria
-    or list(st.session_state.criteria_matrix.columns) != criteria_names
-    or list(st.session_state.criteria_matrix.index) != criteria_names
 ):
     st.session_state.criteria_matrix = pd.DataFrame(
         np.ones((num_criteria, num_criteria)),
         columns=criteria_names,
         index=criteria_names,
     )
-else:
-    # Оновлюємо назви без втрати значень
-    st.session_state.criteria_matrix.columns = criteria_names
-    st.session_state.criteria_matrix.index = criteria_names
+    # Якщо матриця скинулась, треба скинути і розраховані ваги
+    if "criteria_weights_display" in st.session_state:
+        del st.session_state.criteria_weights_display
+
+# 2. ЗАВЖДИ оновлюємо назви колонок/індексів (це не руйнує дані)
+st.session_state.criteria_matrix.columns = criteria_names
+st.session_state.criteria_matrix.index = criteria_names
 
 criteria_df = st.data_editor(
     st.session_state.criteria_matrix,
@@ -245,7 +248,6 @@ if save_clicked:
     st.session_state.criteria_weights_display = weights
     
     st.success("✅ Матриця критеріїв оновлена та коректно округлена!")
-    # st.rerun() # <-- Видалено!
 
 
 # --- НОВИЙ БЛОК: Постійне відображення матриці + ваг ---
@@ -276,20 +278,21 @@ for tab, crit in zip(tabs, criteria_names):
     with tab:
         st.markdown(f"### Порівняння альтернатив за критерієм **{crit}**")
 
+        # --- ОНОВЛЕНА ЛОГІКА ---
+        # 1. Ініціалізуємо матрицю, ТІЛЬКИ ЯКЩО її немає або змінився РОЗМІР
         if (
             crit not in st.session_state.alt_matrices
             or len(st.session_state.alt_matrices[crit]) != num_alternatives
-            or list(st.session_state.alt_matrices[crit].columns) != alternative_names
-            or list(st.session_state.alt_matrices[crit].index) != alternative_names
         ):
             st.session_state.alt_matrices[crit] = pd.DataFrame(
                 np.ones((num_alternatives, num_alternatives)),
                 columns=alternative_names,
                 index=alternative_names,
             )
-        else:
-            st.session_state.alt_matrices[crit].columns = alternative_names
-            st.session_state.alt_matrices[crit].index = alternative_names
+
+        # 2. ЗАВЖДИ оновлюємо назви колонок/індексів
+        st.session_state.alt_matrices[crit].columns = alternative_names
+        st.session_state.alt_matrices[crit].index = alternative_names
 
         alt_df = st.data_editor(
             st.session_state.alt_matrices[crit],
@@ -354,7 +357,6 @@ for tab, crit in zip(tabs, criteria_names):
             
             # Показуємо оновлену матрицю відразу
             st.dataframe(edited_alt_df.style.format("{:.3f}"), use_container_width=True)
-            # st.rerun() # Не робимо rerun, щоб користувач бачив результат
 
 # ------------------------------------------------
 # 🧮 Розрахунок глобальних пріоритетів

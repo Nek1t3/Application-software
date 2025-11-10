@@ -29,6 +29,9 @@ num_alternatives = st.number_input(
 # ✅ Підтримка оновлення при зміні кількості
 if num_criteria != st.session_state.num_criteria:
     st.session_state.num_criteria = int(num_criteria)
+    # При зміні кількості, видаляємо старі ваги
+    if "criteria_weights_display" in st.session_state:
+        del st.session_state.criteria_weights_display
     st.rerun()
 if num_alternatives != st.session_state.num_alternatives:
     st.session_state.num_alternatives = int(num_alternatives)
@@ -102,6 +105,9 @@ elif mode == "Імпортувати матриці":
                 st.session_state.alt_matrices = {
                     k: pd.DataFrame(v) for k, v in imported.get("alt_matrices", {}).items()
                 }
+                # При імпорті видаляємо старі розраховані ваги, щоб уникнути невідповідності
+                if "criteria_weights_display" in st.session_state:
+                    del st.session_state.criteria_weights_display
                 st.sidebar.success("✅ Матриці імпортовано! Оновлення застосунку...")
                 st.rerun()
 
@@ -157,11 +163,9 @@ else:
     st.session_state.criteria_matrix.index = criteria_names
 
 criteria_df = st.data_editor(
-    st.session_state.criteria_matrix,  # Подаємо чистий DataFrame
+    st.session_state.criteria_matrix,
     key="criteria_editor",
     use_container_width=True,
-    # Встановлюємо формат лише для ВІДОБРАЖЕННЯ, якщо це можливо в нових версіях (але краще форматувати дані при збереженні)
-    # У нових версіях streamlit можна використовувати column_config для форматування
 )
 
 # ------------------------------------------------
@@ -231,16 +235,32 @@ if save_clicked:
     np.fill_diagonal(edited_df.values, 1.000)
     st.session_state.criteria_matrix = edited_df
 
+    # --- ОНОВЛЕНА ЛОГІКА ---
+    # 1. Розраховуємо ваги
     col_sum = edited_df.sum(axis=0)
     norm_matrix = edited_df / col_sum
     weights = norm_matrix.mean(axis=1).round(3)
 
-    result_df = edited_df.copy()
-    result_df["Вектор пріоритетів"] = weights
-
+    # 2. Зберігаємо ваги в session_state для постійного відображення
+    st.session_state.criteria_weights_display = weights
+    
     st.success("✅ Матриця критеріїв оновлена та коректно округлена!")
-    st.dataframe(result_df.style.format("{:.3f}"), use_container_width=True)
-    st.rerun() # Примусово оновлюємо сторінку, щоб data_editor підтягнув чисті дані
+    # st.rerun() # <-- Видалено!
+
+
+# --- НОВИЙ БЛОК: Постійне відображення матриці + ваг ---
+if "criteria_weights_display" in st.session_state:
+    
+    # Переконуємося, що ваги сумісні за розміром (якщо користувач змінив N критеріїв)
+    if len(st.session_state.criteria_weights_display) == len(st.session_state.criteria_matrix):
+        st.markdown("### Матриця критеріїв з вектором пріоритетів")
+        display_df = st.session_state.criteria_matrix.copy()
+        display_df["Вектор пріоритетів"] = st.session_state.criteria_weights_display
+        st.dataframe(display_df.style.format("{:.3f}"), use_container_width=True)
+    else:
+        # Ваги застарілі (кількість критеріїв змінилася), видаляємо їх
+        del st.session_state.criteria_weights_display
+
 
 # ------------------------------------------------
 # ⚙️ Матриці альтернатив
@@ -248,10 +268,13 @@ if save_clicked:
 if "alt_matrices" not in st.session_state:
     st.session_state.alt_matrices = {}
 
+st.markdown("---")
+st.markdown("## ⚙️ Матриці альтернатив по кожному критерію")
+
 tabs = st.tabs(criteria_names)
 for tab, crit in zip(tabs, criteria_names):
     with tab:
-        st.markdown(f"### ⚙️ Матриця альтернатив для критерію **{crit}**")
+        st.markdown(f"### Порівняння альтернатив за критерієм **{crit}**")
 
         if (
             crit not in st.session_state.alt_matrices
@@ -328,8 +351,10 @@ for tab, crit in zip(tabs, criteria_names):
             np.fill_diagonal(edited_alt_df.values, 1.000)
             st.session_state.alt_matrices[crit] = edited_alt_df
             st.success(f"✅ Матриця для {crit} оновлена!")
+            
+            # Показуємо оновлену матрицю відразу
             st.dataframe(edited_alt_df.style.format("{:.3f}"), use_container_width=True)
-            st.rerun() # Примусове оновлення
+            # st.rerun() # Не робимо rerun, щоб користувач бачив результат
 
 # ------------------------------------------------
 # 🧮 Розрахунок глобальних пріоритетів
@@ -340,6 +365,12 @@ def calc_weights(matrix):
     if (col_sum == 0).any():
         st.warning("Помилка: сума стовпця нульова. Неможливо нормалізувати.")
         return pd.Series(np.nan, index=matrix.index)
+    
+    # Перевірка на NaN/Inf у сумах
+    if not np.all(np.isfinite(col_sum)) or (col_sum == 0).all():
+        st.error("Помилка в даних матриці (NaN/Inf або нульові стовпці). Розрахунок неможливий.")
+        return pd.Series(np.nan, index=matrix.index)
+
     norm = matrix / col_sum
     weights = norm.mean(axis=1)
     return weights
@@ -375,27 +406,26 @@ if criteria_ready and alts_ready and len(criteria_names) > 0 and len(alternative
                 # Створюємо DataFrame з вагами альтернатив
                 alt_weights_df = pd.DataFrame(alt_weights_dict)
                 
+                # Переконуємося, що індекси та стовпці збігаються
+                alt_weights_df = alt_weights_df.reindex(index=alternative_names, columns=criteria_names)
+                criteria_weights = criteria_weights.reindex(index=criteria_names)
+
                 # Множимо ваги альтернатив на ваги критеріїв
                 # (alt_weights_df - (N_alt x N_crit), criteria_weights - (N_crit x 1))
                 global_priorities_vec = alt_weights_df.dot(criteria_weights)
                 
-                # Додаємо розрахунки до DataFrame для відображення
-                final_df = alt_weights_df.copy()
-                final_df['Ваги крит. (Wk)'] = criteria_weights
-                
                 # Створюємо підсумковий DataFrame
                 global_priorities_display = pd.DataFrame({
                     "Глоб. пріор.": global_priorities_vec
-                })
+                }, index=alternative_names)
                 global_priorities_display = global_priorities_display.sort_values("Глоб. пріор.", ascending=False)
                 
                 st.markdown("### 1. Ваги альтернатив по кожному критерію (W_ij)")
                 st.dataframe(alt_weights_df.style.format("{:.3f}"), use_container_width=True)
                 
-                st.markdown("### 2. Ваги критеріїв (W_j)")
-                st.dataframe(criteria_weights.to_frame(name="Вага").style.format("{:.3f}"), use_container_width=True)
+                # Блок "Ваги критеріїв (W_j)" видалено, оскільки він тепер відображається вище.
 
-                st.markdown("### 3. Глобальні пріоритети (W_i)")
+                st.markdown("### 2. Глобальні пріоритети (W_i)")
                 st.dataframe(global_priorities_display.style.format("{:.3f}"), use_container_width=True)
                 
                 st.success("✅ Розрахунок завершено!")

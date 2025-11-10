@@ -9,7 +9,7 @@ from io import BytesIO
 # 🔧 Налаштування сторінки
 # ------------------------------------------------
 st.set_page_config(page_title="Метод Сааті", layout="wide")
-st.title("Метод Сааті — Ієрархія задачі")
+st.title("Метод Сааті — Ієрархия задачі")
 
 # ------------------------------------------------
 # 📈 Таблиця випадкової узгодженості (ВВУ / RI)
@@ -73,7 +73,7 @@ if "alt_consistency" not in st.session_state:
     st.session_state.alt_consistency = {}
 
 num_criteria = st.number_input(
-    "Кількість критеріїв:", 1, 9, value=st.session_state.num_criteria
+    "Кількість критеріїв:", 1, 10, value=st.session_state.num_criteria # Збільшено до 10, як на фото
 )
 num_alternatives = st.number_input(
     "Кількість альтернатив:", 1, 9, value=st.session_state.num_alternatives
@@ -189,7 +189,6 @@ st.graphviz_chart(dot, use_container_width=True)
 # ------------------------------------------------
 st.markdown("## 📊 Матриця попарних порівнянь критеріїв")
 
-# --- ОНОВЛЕНА ЛОГІКА ---
 # 1. Ініціалізуємо матрицю, ТІЛЬКИ ЯКЩО її немає або змінився РОЗМІР
 if (
     "criteria_matrix" not in st.session_state
@@ -222,55 +221,60 @@ save_clicked = st.button("💾 Зберегти зміни в матриці к�
 
 if save_clicked:
     edited_df = pd.DataFrame(criteria_df, columns=criteria_names, index=criteria_names).astype(float)
-    prev = st.session_state.criteria_matrix.copy()
     
-    # ... (Цикл for i in range(num_criteria): ... залишається без змін) ...
-    for i in range(num_criteria):
-        for j in range(i, num_criteria): 
-            if i == j:
-                edited_df.iloc[i, j] = 1.0
-                continue
-            if edited_df.iloc[i, j] != prev.iloc[i, j]:
-                val = edited_df.iloc[i, j]
-                if val > 1: 
-                    if np.isclose(val, np.round(val)): val = float(np.round(val))
-                    edited_df.iloc[i, j] = val
-                    edited_df.iloc[j, i] = round(1 / val, 3)
-                elif val < 1:
-                    val = round(val, 3) 
-                    edited_df.iloc[i, j] = val
-                    inv_val = 1 / val
-                    if np.isclose(inv_val, np.round(inv_val)):
-                        edited_df.iloc[j, i] = float(np.round(inv_val))
-                    else:
-                        edited_df.iloc[j, i] = round(inv_val, 3)
-            elif edited_df.iloc[j, i] != prev.iloc[j, i]:
-                val = edited_df.iloc[j, i]
-                if val > 1:
-                    if np.isclose(val, np.round(val)): val = float(np.round(val))
-                    edited_df.iloc[j, i] = val
-                    edited_df.iloc[i, j] = round(1 / val, 3)
-                elif val < 1:
-                    val = round(val, 3)
-                    edited_df.iloc[j, i] = val
-                    inv_val = 1 / val
-                    if np.isclose(inv_val, np.round(inv_val)):
-                        edited_df.iloc[i, j] = float(np.round(inv_val))
-                    else:
-                        edited_df.iloc[i, j] = round(inv_val, 3)
+    # --- НОВА ПЕРЕВІРКА НА > 9 ---
+    if (edited_df > 9).any().any():
+        st.error("🚨 **Помилка: Введено числа, більші за 9.**\n\nМетод Сааті використовує шкалу від 1 (однакова важливість) до 9 (абсолютна перевага). Будь ласка, виправте введені значення.")
+    else:
+        # --- СТАРА ЛОГІКА ЗБЕРЕЖЕННЯ (тепер всередині 'else') ---
+        prev = st.session_state.criteria_matrix.copy()
+        
+        for i in range(num_criteria):
+            for j in range(i, num_criteria): 
+                if i == j:
+                    edited_df.iloc[i, j] = 1.0
+                    continue
+                if edited_df.iloc[i, j] != prev.iloc[i, j]:
+                    val = edited_df.iloc[i, j]
+                    if val > 1: 
+                        if np.isclose(val, np.round(val)): val = float(np.round(val))
+                        edited_df.iloc[i, j] = val
+                        edited_df.iloc[j, i] = round(1 / val, 3)
+                    elif val < 1:
+                        val = round(val, 3) 
+                        edited_df.iloc[i, j] = val
+                        inv_val = 1 / val
+                        if np.isclose(inv_val, np.round(inv_val)):
+                            edited_df.iloc[j, i] = float(np.round(inv_val))
+                        else:
+                            edited_df.iloc[j, i] = round(inv_val, 3)
+                elif edited_df.iloc[j, i] != prev.iloc[j, i]:
+                    val = edited_df.iloc[j, i]
+                    if val > 1:
+                        if np.isclose(val, np.round(val)): val = float(np.round(val))
+                        edited_df.iloc[j, i] = val
+                        edited_df.iloc[i, j] = round(1 / val, 3)
+                    elif val < 1:
+                        val = round(val, 3)
+                        edited_df.iloc[j, i] = val
+                        inv_val = 1 / val
+                        if np.isclose(inv_val, np.round(inv_val)):
+                            edited_df.iloc[i, j] = float(np.round(inv_val))
+                        else:
+                            edited_df.iloc[i, j] = round(inv_val, 3)
 
-    np.fill_diagonal(edited_df.values, 1.000)
-    st.session_state.criteria_matrix = edited_df
+        np.fill_diagonal(edited_df.values, 1.000)
+        st.session_state.criteria_matrix = edited_df
 
-    # 1. Розраховуємо ваги
-    weights = calc_weights(edited_df)
-    st.session_state.criteria_weights_display = weights.round(3)
-    
-    # 2. Розраховуємо узгодженість
-    lambda_max, ci, cr = calculate_consistency(edited_df)
-    st.session_state.criteria_consistency = {"lambda": lambda_max, "ci": ci, "cr": cr}
-    
-    st.success("✅ Матриця критеріїв оновлена та коректно округлена!")
+        # 1. Розраховуємо ваги
+        weights = calc_weights(edited_df)
+        st.session_state.criteria_weights_display = weights.round(3)
+        
+        # 2. Розраховуємо узгодженість
+        lambda_max, ci, cr = calculate_consistency(edited_df)
+        st.session_state.criteria_consistency = {"lambda": lambda_max, "ci": ci, "cr": cr}
+        
+        st.success("✅ Матриця критеріїв оновлена та коректно округлена!")
 
 
 # --- Постійне відображення матриці + ваг + узгодженості ---
@@ -317,7 +321,6 @@ for tab, crit in zip(tabs, criteria_names):
     with tab:
         st.markdown(f"### Порівняння альтернатив за критерієм **{crit}**")
 
-        # --- ОНОВЛЕНА ЛОГІКА ---
         if (
             crit not in st.session_state.alt_matrices
             or len(st.session_state.alt_matrices[crit]) != num_alternatives
@@ -327,7 +330,6 @@ for tab, crit in zip(tabs, criteria_names):
                 columns=alternative_names,
                 index=alternative_names,
             )
-            # Якщо матриця нова, видаляємо старі розрахунки
             if crit in st.session_state.alt_consistency:
                 del st.session_state.alt_consistency[crit]
 
@@ -344,54 +346,59 @@ for tab, crit in zip(tabs, criteria_names):
 
         if save_alt:
             edited_alt_df = pd.DataFrame(alt_df, columns=alternative_names, index=alternative_names).astype(float)
-            prev_alt = st.session_state.alt_matrices[crit].copy()
+            
+            # --- НОВА ПЕРЕВІРКА НА > 9 ---
+            if (edited_alt_df > 9).any().any():
+                st.error(f"🚨 **Помилка: Введено числа, більші за 9, у матриці для '{crit}'.**\n\nБудь ласка, використовуйте лише значення від 1 до 9.")
+            else:
+                # --- СТАРА ЛОГІКА ЗБЕРЕЖЕННЯ (тепер всередині 'else') ---
+                prev_alt = st.session_state.alt_matrices[crit].copy()
 
-            # ... (Цикл for i in range(num_alternatives): ... залишається без змін) ...
-            for i in range(num_alternatives):
-                for j in range(i, num_alternatives):
-                    if i == j:
-                        edited_alt_df.iloc[i, j] = 1.0
-                        continue
-                    if edited_alt_df.iloc[i, j] != prev_alt.iloc[i, j]:
-                        val = edited_alt_df.iloc[i, j]
-                        if val > 1: 
-                            if np.isclose(val, np.round(val)): val = float(np.round(val))
-                            edited_alt_df.iloc[i, j] = val
-                            edited_alt_df.iloc[j, i] = round(1 / val, 3)
-                        elif val < 1:
-                            val = round(val, 3) 
-                            edited_alt_df.iloc[i, j] = val
-                            inv_val = 1 / val
-                            if np.isclose(inv_val, np.round(inv_val)):
-                                edited_alt_df.iloc[j, i] = float(np.round(inv_val))
-                            else:
-                                edited_alt_df.iloc[j, i] = round(inv_val, 3)
-                    elif edited_alt_df.iloc[j, i] != prev_alt.iloc[j, i]:
-                        val = edited_alt_df.iloc[j, i]
-                        if val > 1:
-                            if np.isclose(val, np.round(val)): val = float(np.round(val))
-                            edited_alt_df.iloc[j, i] = val
-                            edited_alt_df.iloc[i, j] = round(1 / val, 3)
-                        elif val < 1:
-                            val = round(val, 3)
-                            edited_alt_df.iloc[j, i] = val
-                            inv_val = 1 / val
-                            if np.isclose(inv_val, np.round(inv_val)):
-                                edited_alt_df.iloc[i, j] = float(np.round(inv_val))
-                            else:
-                                edited_alt_df.iloc[i, j] = round(inv_val, 3)
+                for i in range(num_alternatives):
+                    for j in range(i, num_alternatives):
+                        if i == j:
+                            edited_alt_df.iloc[i, j] = 1.0
+                            continue
+                        if edited_alt_df.iloc[i, j] != prev_alt.iloc[i, j]:
+                            val = edited_alt_df.iloc[i, j]
+                            if val > 1: 
+                                if np.isclose(val, np.round(val)): val = float(np.round(val))
+                                edited_alt_df.iloc[i, j] = val
+                                edited_alt_df.iloc[j, i] = round(1 / val, 3)
+                            elif val < 1:
+                                val = round(val, 3) 
+                                edited_alt_df.iloc[i, j] = val
+                                inv_val = 1 / val
+                                if np.isclose(inv_val, np.round(inv_val)):
+                                    edited_alt_df.iloc[j, i] = float(np.round(inv_val))
+                                else:
+                                    edited_alt_df.iloc[j, i] = round(inv_val, 3)
+                        elif edited_alt_df.iloc[j, i] != prev_alt.iloc[j, i]:
+                            val = edited_alt_df.iloc[j, i]
+                            if val > 1:
+                                if np.isclose(val, np.round(val)): val = float(np.round(val))
+                                edited_alt_df.iloc[j, i] = val
+                                edited_alt_df.iloc[i, j] = round(1 / val, 3)
+                            elif val < 1:
+                                val = round(val, 3)
+                                edited_alt_df.iloc[j, i] = val
+                                inv_val = 1 / val
+                                if np.isclose(inv_val, np.round(inv_val)):
+                                    edited_alt_df.iloc[i, j] = float(np.round(inv_val))
+                                else:
+                                    edited_alt_df.iloc[i, j] = round(inv_val, 3)
 
-            np.fill_diagonal(edited_alt_df.values, 1.000)
-            st.session_state.alt_matrices[crit] = edited_alt_df
-            
-            # --- Розрахунок узгодженості для матриці альтернатив ---
-            lambda_max, ci, cr = calculate_consistency(edited_alt_df)
-            st.session_state.alt_consistency[crit] = {"lambda": lambda_max, "ci": ci, "cr": cr}
-            
-            st.success(f"✅ Матриця для {crit} оновлена!")
-            
-            # Показуємо оновлену матрицю відразу
-            st.dataframe(edited_alt_df.style.format("{:.3f}"), use_container_width=True)
+                np.fill_diagonal(edited_alt_df.values, 1.000)
+                st.session_state.alt_matrices[crit] = edited_alt_df
+                
+                # --- Розрахунок узгодженості для матриці альтернатив ---
+                lambda_max, ci, cr = calculate_consistency(edited_alt_df)
+                st.session_state.alt_consistency[crit] = {"lambda": lambda_max, "ci": ci, "cr": cr}
+                
+                st.success(f"✅ Матриця для {crit} оновлена!")
+                
+                # Показуємо оновлену матрицю відразу
+                st.dataframe(edited_alt_df.style.format("{:.3f}"), use_container_width=True)
 
         # --- БЛОК ВІДОБРАЖЕННЯ УЗГОДЖЕНОСТІ АЛЬТЕРНАТИВ ---
         if crit in st.session_state.alt_consistency:
@@ -452,6 +459,6 @@ if criteria_ready and alts_ready and len(criteria_names) > 0 and len(alternative
                 st.dataframe(global_priorities_display.style.format("{:.3f}"), use_container_width=True)
                 st.success("✅ Розрахунок завершено!")
     except Exception as e:
-        st.error(f"❌ Помилка при розрахунку глобальних пріоRитетів: {e}. Перевірте введені значення.")
+        st.error(f"❌ Помилка при розрахунку глобальних пріоритетів: {e}. Перевірте введені значення.")
 else:
     st.warning("⚠️ Необхідно заповнити та зберегти Матрицю критеріїв та всі Матриці альтернатив для розрахунку.")
